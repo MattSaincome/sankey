@@ -23,6 +23,10 @@ document.getElementById('submit').addEventListener('click', async () => {
 async function renderSankey(data, ticker) {
   // fetch segmentation and prepare sankey data
   let segments = [];
+  // We no longer need to make a separate API call since detailed expenses
+  // are now included in the main income statement response
+  const detailedExpenses = data.expenses;
+  
   try {
     const segResponse = await fetch(`/api/revenue-segmentation?ticker=${ticker}`);
     if (segResponse.ok) {
@@ -32,79 +36,140 @@ async function renderSankey(data, ticker) {
     } else {
       console.error('DEBUG: Segmentation API error', segResponse.status);
     }
+    
+    // Log detailed expense data
+    console.log('DEBUG: Detailed expense data:', detailedExpenses);
   } catch (e) {
-    console.error('Segmentation fetch error', e);
+    console.error('Fetch error', e);
   }
-
-  // Build links: only connect nodes if value > 0, and stop at terminal nodes
-  const originalLabels = [
-    'Revenue',        // 0
-    'Gross Profit',   // 1
-    'Cost of Revenue',// 2
-    'Operating Expenses', // 3
-    'Operating Income',   // 4
-    'Interest Expense',   // 5
-    'Pre-Tax Income',     // 6
-    'Income Tax Expense', // 7
-    'Net Income'          // 8
-  ];
-  // We'll build sources/targets/values dynamically
-  let sources = [], targets = [], values = [];
-  // Revenue splits to Gross Profit and Cost of Revenue
-  if (data.grossProfit > 0) {
-    sources.push(0); targets.push(1); values.push(data.grossProfit);
+  
+  // Prepare the Plotly Sankey data
+  const labels = [];
+  const sources = [];
+  const targets = [];
+  const values = [];
+  
+  // Mapping of node names to indices
+  const nodeMap = {};
+  
+  // Helper function to add a node
+  function addNode(name) {
+    if (!(name in nodeMap)) {
+      nodeMap[name] = labels.length;
+      labels.push(name);
+    }
+    return nodeMap[name];
   }
-  if (data.costOfRevenue > 0) {
-    sources.push(0); targets.push(2); values.push(data.costOfRevenue);
+  
+  // Helper function to add a link
+  function addLink(source, target, value) {
+    if (value <= 0) return;
+    const sourceIdx = addNode(source);
+    const targetIdx = addNode(target);
+    sources.push(sourceIdx);
+    targets.push(targetIdx);
+    values.push(value);
   }
-  // Gross Profit to Operating Expenses and Operating Income
-  if (data.operatingExpenses > 0) {
-    sources.push(1); targets.push(3); values.push(data.operatingExpenses);
-  }
-  if (data.operatingIncome > 0) {
-    sources.push(1); targets.push(4); values.push(data.operatingIncome);
-  }
-  // Operating Income to Interest Expense and Pre-Tax Income
-  if (Math.abs(data.interestExpense) > 0) {
-    sources.push(4); targets.push(5); values.push(Math.abs(data.interestExpense));
-  }
-  if (data.incomeBeforeTax > 0) {
-    sources.push(4); targets.push(6); values.push(data.incomeBeforeTax);
-  }
-  // Pre-Tax Income to Income Tax Expense and Net Income
-  if (Math.abs(data.incomeTaxExpense) > 0) {
-    sources.push(6); targets.push(7); values.push(Math.abs(data.incomeTaxExpense));
-  }
-  if (data.netIncome > 0) {
-    sources.push(6); targets.push(8); values.push(data.netIncome);
-  }
-
-  // Segmentation: each segment flows into Revenue (0)
+  
+  // Add product segments if available
   if (segments.length > 0) {
-    const segCount = segments.length;
-    const segLabels = segments.map(s => s.segment);
-    // Shift all original indices by segCount
-    const labels = segLabels.concat(originalLabels);
-    const segSources = segments.map((_, i) => i);
-    const segTargets = segments.map(_ => segCount); // Revenue is at segCount
-    const segValues = segments.map(s => s.revenue);
-    // Shift all other sources/targets by segCount
-    sources = segSources.concat(sources.map(x => x + segCount));
-    targets = segTargets.concat(targets.map(x => x + segCount));
-    values = segValues.concat(values);
-    // Use new labels
-    var finalLabels = labels;
-  } else {
-    var finalLabels = originalLabels;
+    segments.forEach(segment => {
+      addNode(segment.segment);
+      addLink(segment.segment, 'Revenue', segment.revenue);
+    });
+  }
+  
+  // Add standard nodes
+  addNode('Revenue');
+  addNode('Gross Profit');
+  addNode('Cost of Revenue');
+
+  const hasDetailedOpEx = detailedExpenses && 
+                        (detailedExpenses.researchAndDevelopment > 0 || 
+                         detailedExpenses.sellingGeneralAdmin > 0 || 
+                         detailedExpenses.sellingAndMarketingExpenses > 0 || 
+                         detailedExpenses.depreciation > 0);
+
+  // Nodes
+  addNode('Operating Expenses'); // Intermediate node
+
+  if (hasDetailedOpEx) {
+    if (detailedExpenses.researchAndDevelopment > 0) addNode('R&D Expenses');
+    if (detailedExpenses.sellingGeneralAdmin > 0) addNode('SG&A Expenses');
+    if (detailedExpenses.sellingAndMarketingExpenses > 0) addNode('Marketing Expenses');
+    if (detailedExpenses.depreciation > 0) addNode('Depreciation');
   }
 
+  addNode('Operating Income');
+  addNode('Interest Expense');
+  addNode('Pre-Tax Income');
+  addNode('Income Tax Expense');
+  addNode('Net Income');
+
+  // Standard flow: Revenue to Gross Profit and Cost of Revenue
+  addLink('Revenue', 'Gross Profit', data.grossProfit);
+  addLink('Revenue', 'Cost of Revenue', data.costOfRevenue);
+
+  // Calculate total OpEx for the intermediate node link
+  const totalOperatingExpenses = Math.abs(data.operatingExpenses); // Use the total operating expenses value
+
+  // Link from Gross Profit to the intermediate Operating Expenses node
+  if (totalOperatingExpenses > 0) {
+    addLink('Gross Profit', 'Operating Expenses', totalOperatingExpenses);
+  }
+
+  // Link from Gross Profit to Operating Income (Gross Profit = OpEx + OpIncome)
+  addLink('Gross Profit', 'Operating Income', data.operatingIncome);
+
+  // Links from the intermediate Operating Expenses node to detailed expenses
+  if (hasDetailedOpEx) {
+    if (detailedExpenses.researchAndDevelopment > 0) {
+      addLink('Operating Expenses', 'R&D Expenses', detailedExpenses.researchAndDevelopment);
+    }
+    if (detailedExpenses.sellingGeneralAdmin > 0) {
+      addLink('Operating Expenses', 'SG&A Expenses', detailedExpenses.sellingGeneralAdmin);
+    }
+    if (detailedExpenses.sellingAndMarketingExpenses > 0) {
+      addLink('Operating Expenses', 'Marketing Expenses', detailedExpenses.sellingAndMarketingExpenses);
+    }
+    if (detailedExpenses.depreciation > 0) {
+      addLink('Operating Expenses', 'Depreciation', detailedExpenses.depreciation);
+    }
+  }
+
+  if (Math.abs(data.interestExpense) > 0) {
+    addLink('Operating Income', 'Interest Expense', Math.abs(data.interestExpense));
+  }
+  
+  addLink('Operating Income', 'Pre-Tax Income', data.incomeBeforeTax);
+  
+  if (data.incomeTaxExpense > 0) {
+    addLink('Pre-Tax Income', 'Income Tax Expense', data.incomeTaxExpense);
+  }
+  
+  addLink('Pre-Tax Income', 'Net Income', data.netIncome);
+  
+  // Create more visually appealing labels
+  const finalLabels = labels.map(label => {
+    if (label.includes('Expense') || label.includes('Cost')) {
+      return label; // No change for expense/cost labels
+    }
+    return label; // Return original label
+  });
+  
   const sankeyData = [{
     type: 'sankey',
     orientation: 'h',
     node: {
-      pad: 30,
+      pad: 15,
       thickness: 30,
-      line: { color: '#000', width: 0.5 },
+      line: { color: 'black', width: 0.5 },
+      color: labels.map(label => {
+        if (segments.map(s => s.segment).includes(label) || label === 'Revenue') return '#aaa';
+        if (label.includes('Profit') || label.includes('Income') || label === 'Net Income') return '#3cb371';
+        if (label.includes('Expense') || label.includes('Cost')) return '#c0392b';
+        return '#bbb';
+      }),
       label: finalLabels
     },
     link: { source: sources, target: targets, value: values },
@@ -123,7 +188,14 @@ async function renderSankey(data, ticker) {
 
   // --- D3 Chart Render ---
   if (window.renderD3Sankey) {
-    // Render D3 chart below Plotly chart
-    window.renderD3Sankey(data, segments, ticker);
+    // Fetch YoY growth metrics and pass to D3 renderer
+    try {
+      const growthResp = await fetch(`/api/income-statement-growth?ticker=${ticker}`);
+      const growthData = growthResp.ok ? await growthResp.json() : {};
+      window.renderD3Sankey(data, segments, ticker, detailedExpenses, growthData);
+    } catch (e) {
+      console.error('Growth fetch error', e);
+      window.renderD3Sankey(data, segments, ticker, detailedExpenses, {});
+    }
   }
 }

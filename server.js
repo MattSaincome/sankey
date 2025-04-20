@@ -12,14 +12,41 @@ app.get('/api/income-statement', async (req, res) => {
   const ticker = req.query.ticker;
   if (!ticker) return res.status(400).json({ error: 'Ticker is required' });
   try {
-    const url = `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=1&apikey=${API_KEY}`;
+    // Get a more detailed income statement with multiple periods for trend analysis
+    const url = `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=4&apikey=${API_KEY}`;
     const response = await fetch(url);
     const json = await response.json();
     if (!json || json.length === 0) {
       return res.status(404).json({ error: 'No data found' });
     }
     const statement = json[0];
+    
+    // Extract detailed operating expenses breakdown if available
+    // Different companies report these differently, so we check multiple fields
+    const detailedExpenses = {
+      // Core expense items
+      researchAndDevelopment: statement.researchAndDevelopmentExpenses || 0,
+      sellingGeneralAdmin: statement.sellingGeneralAndAdministrativeExpenses || 0,
+      
+      // Other detailed items that might be present
+      sellingAndMarketingExpenses: statement.sellingAndMarketingExpenses || 0,
+      generalAndAdministrativeExpenses: statement.generalAndAdministrativeExpenses || 0,
+      otherExpenses: statement.otherExpenses || 0,
+      operatingExpenses: statement.operatingExpenses || 0,
+      
+      // Product costs
+      costOfRevenue: statement.costOfRevenue || 0,
+      depreciation: statement.depreciationAndAmortization || 0,
+      
+      // Full data
+      date: statement.date,
+      period: statement.period,
+      symbol: statement.symbol,
+      currency: statement.reportedCurrency
+    };
+    
     res.json({
+      // Standard data we were already providing
       costOfRevenue: statement.costOfRevenue,
       grossProfit: statement.grossProfit,
       operatingExpenses: statement.operatingExpenses,
@@ -27,7 +54,13 @@ app.get('/api/income-statement', async (req, res) => {
       interestExpense: statement.interestExpense,
       incomeBeforeTax: statement.incomeBeforeTax,
       incomeTaxExpense: statement.incomeTaxExpense,
-      netIncome: statement.netIncome
+      netIncome: statement.netIncome,
+      
+      // Add the detailed expense breakdown
+      expenses: detailedExpenses,
+      
+      // Add revenue for ratio calculations
+      revenue: statement.revenue
     });
   } catch (err) {
     console.error(err);
@@ -55,6 +88,24 @@ app.get('/api/revenue-segmentation', async (req, res) => {
       .map(([segment, revenue]) => ({ segment, revenue: Number(revenue) }))
       .filter(s => s.revenue > 0);
     res.json({ date: latestWithData.date, segments });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// New endpoint for income statement YoY growth metrics
+app.get('/api/income-statement-growth', async (req, res) => {
+  const ticker = req.query.ticker;
+  if (!ticker) return res.status(400).json({ error: 'Ticker is required' });
+  try {
+    const url = `https://financialmodelingprep.com/stable/income-statement-growth?symbol=${ticker}&limit=1&period=FY&apikey=${API_KEY}`;
+    const response = await fetch(url);
+    const json = await response.json();
+    if (!json || json.length === 0) {
+      return res.status(404).json({ error: 'No growth data found' });
+    }
+    res.json(json[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
