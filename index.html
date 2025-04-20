@@ -3,24 +3,36 @@
 <head>
   <meta charset="utf-8" />
   <title>Income Statement Sankey Chart</title>
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     input, button { font-size: 1em; padding: 0.5em; }
     #visualization { display: flex; align-items: flex-start; width: 100%; }
-    #chart { flex: 1 1 100%; height: 600px; min-width: 700px; max-width: 98vw; }
+    #d3-chart { flex: 1 1 100%; height: 600px; min-width: 700px; max-width: 98vw; }
   </style>
 </head>
 <body>
   <h1>Stock Income Statement Sankey Chart</h1>
   <input type="text" id="ticker" placeholder="Enter stock ticker" />
   <button id="submit">Generate Chart</button>
+  <button id="copy-screenshot" style="font-size:0.9em;padding:0.3em 0.7em;margin-right:8px;">Copy Chart</button>
+  <button id="download-chart" style="font-size:0.9em;padding:0.3em 0.7em;">Download Chart</button>
   <div id="d3-chart-scroll-anchor"></div>
   <div style="height: 20px;"></div>
   <div id="visualization">
-    <div id="chart"></div>
+    <div id="d3-chart"></div>
   </div>
   <div style="height: 60px;"></div>
+  <div id="screenshot-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;padding:24px;border-radius:8px;box-shadow:0 4px 16px #0003;max-width:90vw;max-height:90vh;display:flex;flex-direction:column;align-items:center;">
+      <img id="screenshot-img" src="" alt="Chart Screenshot" style="max-width:80vw;max-height:70vh;border:1px solid #ccc;" />
+      <div style="margin-top:18px;display:flex;gap:12px;">
+        <button id="close-modal">Close</button>
+        <button id="download-screenshot">Download Image</button>
+      </div>
+      <div style="margin-top:10px;font-size:0.95em;color:#333;">Right-click the image and choose <b>Copy Image</b> to copy to clipboard.</div>
+    </div>
+  </div>
+  <script src="html2canvas.min.js"></script>
   <script src="script.js"></script>
   <script src="d3-sankey.js"></script>
 </body>

@@ -26,7 +26,21 @@ async function renderSankey(data, ticker) {
   // We no longer need to make a separate API call since detailed expenses
   // are now included in the main income statement response
   const detailedExpenses = data.expenses;
-  
+
+  // --- FETCH GROWTH DATA (YoY) ---
+  let growthData = null;
+  try {
+    const growthResponse = await fetch(`/api/income-statement-growth?ticker=${ticker}`);
+    if (growthResponse.ok) {
+      growthData = await growthResponse.json();
+      console.log('DEBUG: Growth data received:', growthData);
+    } else {
+      console.error('[ERROR] Growth fetch error', await growthResponse.json());
+    }
+  } catch (err) {
+    console.error('[ERROR] Growth fetch error', err);
+  }
+
   try {
     const segResponse = await fetch(`/api/revenue-segmentation?ticker=${ticker}`);
     if (segResponse.ok) {
@@ -34,168 +48,98 @@ async function renderSankey(data, ticker) {
       segments = Array.isArray(segJson.segments) ? segJson.segments.filter(s => s.revenue > 0) : [];
       console.log('DEBUG: Segmentation data received:', segments);
     } else {
-      console.error('DEBUG: Segmentation API error', segResponse.status);
+      console.error('[ERROR] Segmentation fetch error', await segResponse.json());
     }
-    
-    // Log detailed expense data
-    console.log('DEBUG: Detailed expense data:', detailedExpenses);
-  } catch (e) {
-    console.error('Fetch error', e);
-  }
-  
-  // Prepare the Plotly Sankey data
-  const labels = [];
-  const sources = [];
-  const targets = [];
-  const values = [];
-  
-  // Mapping of node names to indices
-  const nodeMap = {};
-  
-  // Helper function to add a node
-  function addNode(name) {
-    if (!(name in nodeMap)) {
-      nodeMap[name] = labels.length;
-      labels.push(name);
-    }
-    return nodeMap[name];
-  }
-  
-  // Helper function to add a link
-  function addLink(source, target, value) {
-    if (value <= 0) return;
-    const sourceIdx = addNode(source);
-    const targetIdx = addNode(target);
-    sources.push(sourceIdx);
-    targets.push(targetIdx);
-    values.push(value);
-  }
-  
-  // Add product segments if available
-  if (segments.length > 0) {
-    segments.forEach(segment => {
-      addNode(segment.segment);
-      addLink(segment.segment, 'Revenue', segment.revenue);
-    });
-  }
-  
-  // Add standard nodes
-  addNode('Revenue');
-  addNode('Gross Profit');
-  addNode('Cost of Revenue');
-
-  const hasDetailedOpEx = detailedExpenses && 
-                        (detailedExpenses.researchAndDevelopment > 0 || 
-                         detailedExpenses.sellingGeneralAdmin > 0 || 
-                         detailedExpenses.sellingAndMarketingExpenses > 0 || 
-                         detailedExpenses.depreciation > 0);
-
-  // Nodes
-  addNode('Operating Expenses'); // Intermediate node
-
-  if (hasDetailedOpEx) {
-    if (detailedExpenses.researchAndDevelopment > 0) addNode('R&D Expenses');
-    if (detailedExpenses.sellingGeneralAdmin > 0) addNode('SG&A Expenses');
-    if (detailedExpenses.sellingAndMarketingExpenses > 0) addNode('Marketing Expenses');
-    if (detailedExpenses.depreciation > 0) addNode('Depreciation');
+  } catch (err) {
+    console.error('[ERROR] Segmentation fetch error', err);
   }
 
-  addNode('Operating Income');
-  addNode('Interest Expense');
-  addNode('Pre-Tax Income');
-  addNode('Income Tax Expense');
-  addNode('Net Income');
-
-  // Standard flow: Revenue to Gross Profit and Cost of Revenue
-  addLink('Revenue', 'Gross Profit', data.grossProfit);
-  addLink('Revenue', 'Cost of Revenue', data.costOfRevenue);
-
-  // Calculate total OpEx for the intermediate node link
-  const totalOperatingExpenses = Math.abs(data.operatingExpenses); // Use the total operating expenses value
-
-  // Link from Gross Profit to the intermediate Operating Expenses node
-  if (totalOperatingExpenses > 0) {
-    addLink('Gross Profit', 'Operating Expenses', totalOperatingExpenses);
-  }
-
-  // Link from Gross Profit to Operating Income (Gross Profit = OpEx + OpIncome)
-  addLink('Gross Profit', 'Operating Income', data.operatingIncome);
-
-  // Links from the intermediate Operating Expenses node to detailed expenses
-  if (hasDetailedOpEx) {
-    if (detailedExpenses.researchAndDevelopment > 0) {
-      addLink('Operating Expenses', 'R&D Expenses', detailedExpenses.researchAndDevelopment);
-    }
-    if (detailedExpenses.sellingGeneralAdmin > 0) {
-      addLink('Operating Expenses', 'SG&A Expenses', detailedExpenses.sellingGeneralAdmin);
-    }
-    if (detailedExpenses.sellingAndMarketingExpenses > 0) {
-      addLink('Operating Expenses', 'Marketing Expenses', detailedExpenses.sellingAndMarketingExpenses);
-    }
-    if (detailedExpenses.depreciation > 0) {
-      addLink('Operating Expenses', 'Depreciation', detailedExpenses.depreciation);
-    }
-  }
-
-  if (Math.abs(data.interestExpense) > 0) {
-    addLink('Operating Income', 'Interest Expense', Math.abs(data.interestExpense));
-  }
-  
-  addLink('Operating Income', 'Pre-Tax Income', data.incomeBeforeTax);
-  
-  if (data.incomeTaxExpense > 0) {
-    addLink('Pre-Tax Income', 'Income Tax Expense', data.incomeTaxExpense);
-  }
-  
-  addLink('Pre-Tax Income', 'Net Income', data.netIncome);
-  
-  // Create more visually appealing labels
-  const finalLabels = labels.map(label => {
-    if (label.includes('Expense') || label.includes('Cost')) {
-      return label; // No change for expense/cost labels
-    }
-    return label; // Return original label
-  });
-  
-  const sankeyData = [{
-    type: 'sankey',
-    orientation: 'h',
-    node: {
-      pad: 15,
-      thickness: 30,
-      line: { color: 'black', width: 0.5 },
-      color: labels.map(label => {
-        if (segments.map(s => s.segment).includes(label) || label === 'Revenue') return '#aaa';
-        if (label.includes('Profit') || label.includes('Income') || label === 'Net Income') return '#3cb371';
-        if (label.includes('Expense') || label.includes('Cost')) return '#c0392b';
-        return '#bbb';
-      }),
-      label: finalLabels
-    },
-    link: { source: sources, target: targets, value: values },
-    arrangement: 'snap' // allow some auto spacing, but no forced carry
-  }];
-
-  const layout = {
-    title: `${ticker} Income Statement Sankey Diagram`,
-    font: { size: 12 },
-    width: undefined, // let Plotly auto-fit
-    height: 600,
-    margin: { l: 0, r: 0, t: 40, b: 0 }
-  };
-
-  Plotly.react('chart', sankeyData, layout);
+  // Log detailed expense data
+  console.log('DEBUG: Detailed expense data:', detailedExpenses);
 
   // --- D3 Chart Render ---
   if (window.renderD3Sankey) {
-    // Fetch YoY growth metrics and pass to D3 renderer
-    try {
-      const growthResp = await fetch(`/api/income-statement-growth?ticker=${ticker}`);
-      const growthData = growthResp.ok ? await growthResp.json() : {};
-      window.renderD3Sankey(data, segments, ticker, detailedExpenses, growthData);
-    } catch (e) {
-      console.error('Growth fetch error', e);
-      window.renderD3Sankey(data, segments, ticker, detailedExpenses, {});
-    }
+    window.renderD3Sankey(data, segments, ticker, detailedExpenses, growthData);
   }
 }
+
+// Enhanced screenshot-to-clipboard/modal functionality for Mac and all browsers
+if (navigator.clipboard && window.HTMLCanvasElement) {
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('copy-screenshot');
+    const modal = document.getElementById('screenshot-modal');
+    const img = document.getElementById('screenshot-img');
+    const closeBtn = document.getElementById('close-modal');
+    const downloadBtn = document.getElementById('download-screenshot');
+
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        const chartDiv = document.getElementById('d3-chart');
+        if (!chartDiv) return alert('Chart not found!');
+        if (window.html2canvas) {
+          const canvas = await window.html2canvas(chartDiv, {backgroundColor: null, useCORS: true, scale: 2});
+          canvas.toBlob(async blob => {
+            let copied = false;
+            try {
+              if (window.ClipboardItem) {
+                await navigator.clipboard.write([
+                  new window.ClipboardItem({ 'image/png': blob })
+                ]);
+                copied = true;
+                alert('Chart screenshot copied to clipboard! You can now paste it.');
+              } else {
+                throw new Error('ClipboardItem not supported');
+              }
+            } catch (e) {
+              // Not fatal, just fallback
+            }
+            // Always show modal for manual copy/download
+            const url = URL.createObjectURL(blob);
+            img.src = url;
+            modal.style.display = 'flex';
+            downloadBtn.onclick = () => {
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'chart.png';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            };
+            closeBtn.onclick = () => {
+              modal.style.display = 'none';
+              img.src = '';
+              URL.revokeObjectURL(url);
+            };
+          }, 'image/png');
+        } else {
+          alert('html2canvas library not loaded!');
+        }
+      });
+    }
+  });
+}
+
+// Add download chart functionality
+function downloadChartAsPNG() {
+  const chartDiv = document.getElementById('d3-chart');
+  if (!chartDiv || !window.html2canvas) return alert('Chart not found or html2canvas not loaded!');
+  window.html2canvas(chartDiv, {backgroundColor: null, useCORS: true, scale: 2}).then(canvas => {
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'chart.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const downloadBtn = document.getElementById('download-chart');
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', downloadChartAsPNG);
+  }
+});

@@ -66,8 +66,10 @@
       links.push({ source: sourceIdx, target: targetIdx, value });
     }
     
-    // Segments first if present
+    // --- Product Segments: Explicit Order ---
     if (segments.length > 0) {
+      const desiredOrder = ['iPhone', 'Mac', 'iPad', 'Service', 'Accessories'];
+      segments.sort((a, b) => desiredOrder.indexOf(a.segment) - desiredOrder.indexOf(b.segment));
       segments.forEach(s => {
         addNode(s.segment);
       });
@@ -114,6 +116,35 @@
       }
     }
     
+    // --- Cost of Revenue Sub-Details Breakdown ---
+    if (detailedExpenses) {
+      console.log('DEBUG: detailedExpenses for Cost of Revenue', detailedExpenses);
+    }
+    const corDetailNames = [
+      { key: 'costOfGoodsSold', label: 'COGS' },
+      { key: 'depreciation', label: 'Depreciation' },
+      { key: 'amortization', label: 'Amortization' },
+      { key: 'otherCostOfRevenue', label: 'Other Cost of Revenue' }
+    ];
+    let hasCorDetails = false;
+    let categorizedCor = 0;
+    if (detailedExpenses) {
+      corDetailNames.forEach(cat => {
+        if (detailedExpenses[cat.key] && detailedExpenses[cat.key] > 0) {
+          addNode(cat.label);
+          addLink('Cost of Revenue', cat.label, detailedExpenses[cat.key]);
+          categorizedCor += detailedExpenses[cat.key];
+          hasCorDetails = true;
+        }
+      });
+      // Remaining uncategorized
+      const remainingCor = data.costOfRevenue - categorizedCor;
+      if (hasCorDetails && remainingCor > 0.01 * data.costOfRevenue) {
+        addNode('Other Cost of Revenue');
+        addLink('Cost of Revenue', 'Other Cost of Revenue', remainingCor);
+      }
+    }
+
     // Add standard Cost of Revenue node
     addNode('Cost of Revenue');
     
@@ -266,82 +297,67 @@
       }
     }
 
-    // Move 'Cost of Revenue' node and its link to be much closer to 'Revenue' (short bar)
-    const revenueNode = nodes.find(n => n.name === 'Revenue');
-    const costNode = nodes.find(n => n.name === 'Cost of Revenue');
-    if (revenueNode && costNode) {
-      // Set x0/x1 to a moderate distance after Revenue (middle ground)
-      const extra = (chartWidth / 4.5); // just a bit longer than before
-      costNode.x0 = revenueNode.x1 + extra;
-      costNode.x1 = costNode.x0 + 30;
-      layoutLinks.forEach(l => {
-        if (l.target.name === 'Cost of Revenue') {
-          l.target.x0 = costNode.x0;
-          l.target.x1 = costNode.x1;
+    // --- Universal horizontal gap limiting for connected nodes ---
+    // Prevent pathways from being too long and keep horizontally-related nodes close
+    const MAX_NODE_X_GAP = 240; // px, as requested
+    layoutLinks.forEach(link => {
+      if (!link.source || !link.target) return;
+      const sourceCenterX = (link.source.x0 + link.source.x1) / 2;
+      const targetCenterX = (link.target.x0 + link.target.x1) / 2;
+      const xGap = targetCenterX - sourceCenterX;
+      if (xGap > MAX_NODE_X_GAP) {
+        // Move target node closer, but not overlapping previous node in its column
+        const shift = xGap - MAX_NODE_X_GAP;
+        // Only move if this won't overlap previous node
+        const colNodes = nodes.filter(n => n.x0 === link.target.x0 && n !== link.target).sort((a, b) => a.y0 - b.y0);
+        let canMove = true;
+        colNodes.forEach(n => {
+          // If target node's new x0 would overlap another node, don't move
+          if (Math.abs((link.target.x0 - shift) - n.x1) < 2) {
+            canMove = false;
+          }
+        });
+        if (canMove && link.target.x0 - shift > link.source.x1 + 10) { // 10px min gap
+          link.target.x0 -= shift;
+          link.target.x1 -= shift;
         }
-      });
-    }
-    const opExpNode = nodes.find(n => n.name === 'Operating Expenses');
-    const grossProfitNode = nodes.find(n => n.name === 'Gross Profit');
-    if (grossProfitNode && opExpNode) {
-      const extraOp = (chartWidth / 4.5);
-      opExpNode.x0 = grossProfitNode.x1 + extraOp;
-      opExpNode.x1 = opExpNode.x0 + 30;
-      layoutLinks.forEach(l => {
-        if (l.target.name === 'Operating Expenses') {
-          l.target.x0 = opExpNode.x0;
-          l.target.x1 = opExpNode.x1;
-        }
-      });
-    }
-
-    // Find Operating Income node once for reuse
-    const opIncomeNode = nodes.find(n => n.name === 'Operating Income');
-    // --- Custom Split for Net Income and Income Tax Expense ---
-    const netIncomeNode2 = nodes.find(n => n.name === 'Net Income');
-    const taxNode2 = nodes.find(n => n.name === 'Income Tax Expense');
-    if (opIncomeNode && netIncomeNode2 && taxNode2) {
-      // Find the two outgoing links
-      const netLink = links.find(l => l.source === opIncomeNode && l.target === netIncomeNode2);
-      const taxLink = links.find(l => l.source === opIncomeNode && l.target === taxNode2);
-      if (netLink && taxLink) {
-        // Compute total outgoing value and proportions
-        const total = netLink.value + taxLink.value;
-        const opIncomeHeight = opIncomeNode.y1 - opIncomeNode.y0;
-        const netRatio = netLink.value / total;
-        const taxRatio = taxLink.value / total;
-        // Calculate proper section heights based on values
-        const netSectionHeight = opIncomeHeight * netRatio;
-        const taxSectionHeight = opIncomeHeight * taxRatio;
-        // Net Income starts at the exact top of Operating Income bar
-        const netStartY = opIncomeNode.y0;
-        // Income Tax Expense starts at the bottom and goes up
-        const taxStartY = opIncomeNode.y1 - taxSectionHeight;
-        // Set link y0 for source
-        netLink.y0 = netStartY + netSectionHeight / 2;
-        taxLink.y0 = taxStartY + taxSectionHeight / 2;
-        // Adjust target node y0/y1 to match
-        const netTargetHeight = netIncomeNode2.y1 - netIncomeNode2.y0;
-        const taxTargetHeight = taxNode2.y1 - taxNode2.y0;
-        // Place Net Income node at the top, Income Tax Expense below
-        netIncomeNode2.y0 = netStartY;
-        netIncomeNode2.y1 = netStartY + netSectionHeight;
-        taxNode2.y0 = netIncomeNode2.y1 + 16; // 16px gap
-        taxNode2.y1 = taxNode2.y0 + taxSectionHeight;
-        // Update link targets
-        netLink.y1 = (netIncomeNode2.y0 + netIncomeNode2.y1) / 2;
-        taxLink.y1 = (taxNode2.y0 + taxNode2.y1) / 2;
       }
+    });
+    // For expense detail nodes, align their x positions to be close to their parent and preserve width
+    const opExNodeFinal = nodes.find(n => n && n.name === 'Operating Expenses');
+    if (opExNodeFinal) {
+      const opExDetailNodes = nodes.filter(n =>
+        links.some(l => l.source === opExNodeFinal && l.target === n)
+      );
+      const baseX0 = opExNodeFinal.x1 + 30;
+      opExDetailNodes.forEach((node, idx) => {
+        const width = node.x1 - node.x0;
+        node.x0 = baseX0;
+        node.x1 = baseX0 + width;
+        // Validation: Clamp width if excessive
+        if (node.x1 - node.x0 > 160) {
+          node.x1 = node.x0 + 160;
+        }
+        if (node.x1 - node.x0 < 20) {
+          node.x1 = node.x0 + 20;
+        }
+      });
     }
-    // --- End Custom Split ---
-    // --- Manual Node Position Adjustments ---
-    const opExNode = nodes.find(n => n.name === 'Operating Expenses');
 
-    if (opExNode && opIncomeNode && opExNode.y0 < opIncomeNode.y1) {
+    // --- Validation: Clamp node widths and heights ---
+    nodes.forEach(node => {
+      if (node.x1 - node.x0 > 220) node.x1 = node.x0 + 220;
+      if (node.x1 - node.x0 < 18) node.x1 = node.x0 + 18;
+      if (node.y1 - node.y0 < 8) node.y1 = node.y0 + 8;
+    });
+
+    // --- Manual Node Position Adjustments ---
+    const opExNode = nodes.find(n => n && n.name === 'Operating Expenses');
+    if (opExNode && nodes.find(n => n && n.name === 'Net Income') && opExNode.y0 < nodes.find(n => n && n.name === 'Net Income').y1) {
         const originalY0 = opExNode.y0; // Store original position
         const padding = 25; // Vertical space between OpInc bottom and OpEx top
         const currentHeight = opExNode.y1 - opExNode.y0;
-        const newY0 = opIncomeNode.y1 + padding;
+        const newY0 = nodes.find(n => n && n.name === 'Net Income').y1 + padding;
 
         opExNode.y0 = newY0;
         opExNode.y1 = newY0 + currentHeight;
@@ -358,46 +374,39 @@
             }
         });
     }
-    // --- End Manual Adjustments ---
-
-    // Find Net Income node x0/x1 (reuse for both Y and X adjustments)
-    const netIncomeNode = nodes.find(n => n.name === 'Net Income');
     // --- Manual Y Adjustment for Net Income and Income Tax Expense ---
-    // Ensure Net Income is above Income Tax Expense
-    if (netIncomeNode) {
-      const taxNode = nodes.find(n => n.name === 'Income Tax Expense');
-      if (taxNode && netIncomeNode.y0 > taxNode.y0) {
-        // Swap y positions so Net Income is above
-        const netIncomeHeight = netIncomeNode.y1 - netIncomeNode.y0;
-        const taxHeight = taxNode.y1 - taxNode.y0;
-        const swapGap = 16;
-        // Set Net Income at the higher y, then tax below
-        const newNetIncomeY0 = Math.max(30, taxNode.y0 - netIncomeHeight - swapGap);
-        const newTaxY0 = newNetIncomeY0 + netIncomeHeight + swapGap;
-        const netDelta = newNetIncomeY0 - netIncomeNode.y0;
-        const taxDelta = newTaxY0 - taxNode.y0;
-        netIncomeNode.y0 = newNetIncomeY0;
-        netIncomeNode.y1 = newNetIncomeY0 + netIncomeHeight;
-        taxNode.y0 = newTaxY0;
-        taxNode.y1 = newTaxY0 + taxHeight;
-        // Update links to match new node positions
-        links.forEach(link => {
-          if (link.source === netIncomeNode) link.y0 += netDelta;
-          if (link.target === netIncomeNode) link.y1 += netDelta;
-          if (link.source === taxNode) link.y0 += taxDelta;
-          if (link.target === taxNode) link.y1 += taxDelta;
-        });
-      }
+    const netIncomeNode2 = nodes.find(n => n && n.name === 'Net Income');
+    const taxNode2 = nodes.find(n => n && n.name === 'Income Tax Expense');
+    if (netIncomeNode2 && taxNode2 && netIncomeNode2.y0 > taxNode2.y0) {
+      // Swap y positions so Net Income is above
+      const netIncomeHeight = netIncomeNode2.y1 - netIncomeNode2.y0;
+      const taxHeight = taxNode2.y1 - taxNode2.y0;
+      const swapGap = 16;
+      // Set Net Income at the higher y, then tax below
+      const newNetIncomeY0 = Math.max(30, taxNode2.y0 - netIncomeHeight - swapGap);
+      const newTaxY0 = newNetIncomeY0 + netIncomeHeight + swapGap;
+      const netDelta = newNetIncomeY0 - netIncomeNode2.y0;
+      const taxDelta = newTaxY0 - taxNode2.y0;
+      netIncomeNode2.y0 = newNetIncomeY0;
+      netIncomeNode2.y1 = newNetIncomeY0 + netIncomeHeight;
+      taxNode2.y0 = newTaxY0;
+      taxNode2.y1 = newTaxY0 + taxHeight;
+      // Update links to match new node positions
+      links.forEach(link => {
+        if (link.source === netIncomeNode2) link.y0 += netDelta;
+        if (link.target === netIncomeNode2) link.y1 += netDelta;
+        if (link.source === taxNode2) link.y0 += taxDelta;
+        if (link.target === taxNode2) link.y1 += taxDelta;
+      });
     }
-    // --- End Manual Y Adjustment ---
     // --- Manual X Adjustments for Expense Details ---
-    if (netIncomeNode) {
+    if (nodes.find(n => n && n.name === 'Net Income')) {
       // Find all nodes that are direct children of Operating Expenses (i.e., detailed expense nodes)
       const opExDetailNodes = nodes.filter(n =>
           links.some(l => l.source === opExNode && l.target === n)
       );
       // Place them just before Net Income's x0
-      const detailX0 = netIncomeNode.x0 - 5; // 5px gap before Net Income
+      const detailX0 = nodes.find(n => n && n.name === 'Net Income').x0 - 5; // 5px gap before Net Income
       const detailX1 = detailX0 + (opExDetailNodes[0]?.x1 - opExDetailNodes[0]?.x0 || 30); // Keep width
       // Optionally stagger y for clarity
       const detailSpacing = 10;
@@ -409,12 +418,147 @@
           node.y1 += 30;
           // Update links to match new node position
           links.forEach(link => {
-              if (link.source === node) link.y0 += 30;
-              if (link.target === node) link.y1 += 30;
+              if (link.source === node) {
+                link.y0 += 30;
+              }
+              if (link.target === node) {
+                link.y1 += 30;
+              }
           });
       });
     }
-    // --- End Manual X Adjustments ---
+
+    // --- Robust, cascading universal node margin logic for all columns, with overflow handling ---
+    const MIN_NODE_MARGIN = 8;
+    const xPositions = [...new Set(nodes.map(n => n.x0))];
+    xPositions.forEach(x0 => {
+      const colNodes = nodes.filter(n => n.x0 === x0).sort((a, b) => a.y0 - b.y0);
+      if (colNodes.length === 0) return;
+      // Calculate total needed height
+      const totalNodeHeight = colNodes.reduce((sum, n) => sum + (n.y1 - n.y0), 0);
+      const totalMargin = (colNodes.length - 1) * MIN_NODE_MARGIN;
+      const totalNeeded = totalNodeHeight + totalMargin;
+      let scale = 1;
+      if (typeof chartHeight !== 'undefined' && totalNeeded > chartHeight) {
+        // Shrink all node heights proportionally
+        scale = (chartHeight - totalMargin) / totalNodeHeight;
+      }
+      // Place nodes with margin, shrinking if needed
+      let yCursor = colNodes[0].y0;
+      colNodes.forEach((node, idx) => {
+        if (!node) return;
+        const origHeight = node.y1 - node.y0;
+        const height = origHeight * scale;
+        if (idx === 0) {
+          node.y0 = yCursor;
+          node.y1 = node.y0 + height;
+        } else {
+          node.y0 = yCursor + MIN_NODE_MARGIN;
+          node.y1 = node.y0 + height;
+        }
+        yCursor = node.y1;
+      });
+    });
+    // After node adjustment, update links' y0/y1 as needed for accuracy
+    layoutLinks.forEach(link => {
+      if (link.source) {
+        link.y0 = link.source.y0 + (link.source.y1 - link.source.y0) / 2;
+      }
+      if (link.target) {
+        link.y1 = link.target.y0 + (link.target.y1 - link.target.y0) / 2;
+      }
+    });
+
+    // --- Advanced, universal anti-overlap and anti-crossing for ALL multi-link nodes ---
+    function isProfitNode(node) {
+      if (!node || !node.name) return false;
+      const name = node.name.toLowerCase();
+      return (
+        name.includes('profit') ||
+        name.includes('income') && !name.includes('expense')
+      );
+    }
+    function reorderOutgoingLinksProfitAboveCost(nodes, links) {
+      nodes.forEach(node => {
+        // Find all outgoing links from this node
+        const outgoing = links.filter(l => l.source === node);
+        if (outgoing.length <= 1) return;
+        // First: sort by profit-above-cost (green above red)
+        outgoing.sort((a, b) => {
+          const aProfit = isProfitNode(a.target);
+          const bProfit = isProfitNode(b.target);
+          if (aProfit && !bProfit) return -1;
+          if (!aProfit && bProfit) return 1;
+          // Within group, sort by y0 for smoothness
+          return (a.target.y0 || 0) - (b.target.y0 || 0);
+        });
+        // Calculate total value and vertical space
+        const totalValue = outgoing.reduce((sum, l) => sum + l.value, 0);
+        let yCursor = node.y0;
+        outgoing.forEach(link => {
+          // Height of this link proportional to its value
+          const linkHeight = (link.value / totalValue) * (node.y1 - node.y0);
+          // Center of this link's exit
+          link.y0 = yCursor + linkHeight / 2;
+          yCursor += linkHeight;
+        });
+      });
+    }
+    reorderOutgoingLinksProfitAboveCost(nodes, layoutLinks);
+    // --- Enforce consistent vertical order at Revenue node (for incoming) ---
+    // (Already handled above for segment flows)
+    // --- Custom vertical order and y-positioning for OpEx and CoR detail nodes ---
+    const opExDetailNames = [
+      'R&D Expenses', 'SG&A Expenses', 'Marketing Expenses', 'Other Operating Expenses'
+    ];
+    const corDetailNodeNames = [
+      'COGS', 'Depreciation', 'Amortization', 'Other Cost of Revenue'
+    ];
+    const opExYOffset = 50;
+    const corYOffset = 120; // Place below OpEx details
+    nodes.forEach(node => {
+      if (opExDetailNames.includes(node.name)) {
+        node.y0 += opExYOffset;
+        node.y1 += opExYOffset;
+      }
+      if (corDetailNodeNames.includes(node.name)) {
+        node.y0 += corYOffset;
+        node.y1 += corYOffset;
+      }
+    });
+    // Only shift the target side (y1) of links going to OpEx or CoR detail nodes
+    layoutLinks.forEach(link => {
+      if (opExDetailNames.includes(link.target.name)) {
+        link.y1 += opExYOffset;
+      }
+      if (corDetailNodeNames.includes(link.target.name)) {
+        link.y1 += corYOffset;
+      }
+    });
+    // Redraw nodes and links with new positions
+    chartGroup.selectAll('*').remove();
+
+    // --- Enforce order-preserving entry for revenue segment links into Revenue node ---
+    // After all spacing/margin logic, align segment entry points to match left node order
+    const revenueNode = nodes.find(n => n && n.name === 'Revenue');
+    if (revenueNode) {
+      // Get all segment nodes (sources to Revenue), sorted by y0
+      const segmentLinks = layoutLinks.filter(l => l.target === revenueNode && l.source && l.source.x0 < revenueNode.x0);
+      const segmentNodesOrdered = segmentLinks.map(l => l.source).sort((a, b) => a.y0 - b.y0);
+      // Compute the available height and slot heights
+      const totalHeight = revenueNode.y1 - revenueNode.y0;
+      const slotHeights = segmentNodesOrdered.map(n => n.y1 - n.y0);
+      let yCursor = revenueNode.y0;
+      segmentNodesOrdered.forEach((segNode, idx) => {
+        const link = segmentLinks.find(l => l.source === segNode);
+        const slotHeight = slotHeights[idx];
+        if (link) {
+          // Center of this slot
+          link.y1 = yCursor + slotHeight / 2;
+        }
+        yCursor += slotHeight;
+      });
+    }
 
     // Color logic
     function nodeColor(name) {
@@ -521,7 +665,21 @@
       if (name === 'Operating Expenses' && data.revenue > 0) return (data.operatingExpenses / data.revenue * 100).toFixed(0) + '% of revenue';
       return '';
     }
-    const labelGroup = chartGroup.append('g');
+    chartGroup.selectAll('.node-label').remove();
+    chartGroup.selectAll('.node-label')
+      .data(nodes)
+      .enter()
+      .append('text')
+      .attr('class', 'node-label')
+      .attr('x', d => (d.x0 + d.x1) / 2)
+      .attr('y', d => (d.y0 + d.y1) / 2)
+      .attr('text-anchor', 'middle')
+      .attr('alignment-baseline', 'middle')
+      .attr('font-size', d => Math.max(10, Math.min(16, (d.y1 - d.y0) * 0.7)))
+      .attr('fill', d => ['#c0392b', '#555'].includes(nodeColor(d.name)) ? '#fff' : '#222')
+      .text(d => d.name.length > 18 ? d.name.slice(0, 16) + '…' : d.name);
+
+    labelGroup = chartGroup.append('g');
     filteredNodes.forEach(d => {
       const isSeg = segments.map(s => s.segment).includes(d.name);
       const cx = isSeg ? d.x0 - 10 : d.x0 + (d.x1 - d.x0) / 2;
@@ -630,88 +788,76 @@
       }
     });
 
-    // Draw link labels: show y/y growth for all links if available, fallback to dollar values
-    chartGroup.selectAll('text.link-label').remove();
-    chartGroup.selectAll('text.link-label')
-      .data(layoutLinks.filter(d => d.width > 40 && Math.abs(d.target.x0 - d.source.x1) > 60))
-      .enter().append('text')
-      .each(function(d) {
-        const key = growthKeyMap[d.target.name];
-        const val = key && growthData[key] != null ? growthData[key] : null;
-        if (typeof val === 'number') {
-          d3.select(this)
-            .attr('stroke', 'none')
-            .attr('stroke-width', 0)
-            .attr('filter', 'none')
-            .attr('paint-order', 'normal');
-        } else {
-          d3.select(this)
-            .attr('stroke', 'white')
-            .attr('stroke-width', 6)
-            .attr('paint-order', 'stroke')
-            .attr('stroke-linejoin', 'round')
-            .attr('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
-        }
-      })
-      .attr('x', d => (d.source.x1 + d.target.x0) / 2)
-      .attr('y', d => (d.y0 + d.y1) / 2 + 4)
-      .attr('text-anchor', 'middle')
-      .attr('alignment-baseline', 'middle')
-      .style('font-size', '12px')
-      .style('fill', '#222')
-      .style('pointer-events', 'none')
-      .text(d => {
-        const key = growthKeyMap[d.target.name];
-        const val = key && growthData[key] != null ? growthData[key] : null;
-        if (typeof val === 'number') {
-          const pct = (val * 100).toFixed(1) + '% YoY';
-          return (val > 0 ? '+' : '') + pct;
-        }
-        return formatDollars(d.value);
-      });
-    chartGroup.selectAll('text.link-label')
-      .raise()
-      .style('stroke-width', 6)
-      .style('stroke', 'white')
-      .style('paint-order', 'stroke');
-    chartGroup.selectAll('text.link-label')
-      .raise();
-    chartGroup.selectAll('text.link-label')
-      .style('stroke-width', 6)
-      .style('stroke', 'white')
-      .style('paint-order', 'stroke');
+    // Helper to compute the center of a curved Sankey link
+    function getLinkRibbonCenter(d) {
+      // For vertical alignment, use the midpoint between the link's y0 and y1 (which are already adjusted for node height)
+      // For horizontal, use the midpoint between source.x1 and target.x0
+      const x = (d.source.x1 + d.target.x0) / 2;
+      const y = (d.y0 + d.y1) / 2;
+      return [x, y];
+    }
 
-    // Modern, beautiful chart title with gradient
-    svg.selectAll('text.chart-title').remove();
-    svg.append('defs').append('linearGradient')
-      .attr('id', 'title-gradient')
-      .attr('x1', '0%').attr('y1', '0%').attr('x2', '100%').attr('y2', '0%')
-      .selectAll('stop')
-      .data([
-        { offset: '0%', color: '#3cb371' },
-        { offset: '50%', color: '#555' },
-        { offset: '100%', color: '#c0392b' }
-      ])
-      .enter().append('stop')
-      .attr('offset', d => d.offset)
-      .attr('stop-color', d => d.color);
-    // Add buffer for chart title
-    const titleBuffer = 32;
-    svg.append('text')
-      .attr('class', 'chart-title')
-      .attr('x', Math.max(width / 2, titleBuffer))
-      .attr('y', margin.top / 1.4)
+    // --- Add YoY Growth Labels ---
+    chartGroup.selectAll('text.yoy-label').data(layoutLinks.filter(link => {
+      if (!link || !link.source || !link.target) return false;
+      if (segments && segments.length && link.target.name === 'Revenue') {
+        const seg = segments.find(s => s.segment === link.source.name);
+        return seg && typeof seg.yoy === 'number';
+      }
+      return typeof growthKeyMap !== 'undefined' && growthKeyMap[link.target.name] && growthData && growthData[growthKeyMap[link.target.name]] != null;
+    }))
+      .join('text')
+      .attr('class', 'yoy-label')
+      .attr('x', d => d && d.source && d.target ? getLinkRibbonCenter(d)[0] : 0)
+      .attr('y', d => d && d.source && d.target ? getLinkRibbonCenter(d)[1] : 0)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '24px')
-      .attr('font-weight', 'bold')
-      .attr('dominant-baseline', 'hanging')
-      .style('fill', 'url(#title-gradient)')
-      .style('letter-spacing', '1.5px')
-      .style('overflow', 'visible')
-      .style('text-overflow', 'ellipsis')
-      .attr('clip-path', null)
-      .attr('width', width - 2 * titleBuffer)
-      .text(`${ticker} Income Statement Sankey (D3)`);
+      .attr('font-size', '14px')
+      .attr('fill', '#222')
+      .attr('font-weight', 700)
+      .text(d => {
+        if (!d || !d.source || !d.target) return '';
+        if (segments && segments.length && d.target.name === 'Revenue') {
+          const seg = segments.find(s => s.segment === d.source.name);
+          if (seg && typeof seg.yoy === 'number') {
+            return (seg.yoy > 0 ? '+' : '') + seg.yoy.toFixed(1) + '% YoY';
+          }
+        }
+        const key = growthKeyMap[d.target.name];
+        let val = growthData[key];
+        if (val == null || isNaN(val)) return '';
+        if (Math.abs(val) < 1) val = val * 100;
+        return (val > 0 ? '+' : '') + val.toFixed(1) + '% YoY';
+      });
+    chartGroup.selectAll('text.yoy-label-foreground').data(layoutLinks.filter(link => {
+      if (!link || !link.source || !link.target) return false;
+      if (segments && segments.length && link.target.name === 'Revenue') {
+        const seg = segments.find(s => s.segment === link.source.name);
+        return seg && typeof seg.yoy === 'number';
+      }
+      return typeof growthKeyMap !== 'undefined' && growthKeyMap[link.target.name] && growthData && growthData[growthKeyMap[link.target.name]] != null;
+    }))
+      .join('text')
+      .attr('class', 'yoy-label-foreground')
+      .attr('x', d => d && d.source && d.target ? getLinkRibbonCenter(d)[0] : 0)
+      .attr('y', d => d && d.source && d.target ? getLinkRibbonCenter(d)[1] : 0)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '14px')
+      .attr('fill', '#222')
+      .attr('font-weight', 700)
+      .text(d => {
+        if (!d || !d.source || !d.target) return '';
+        if (segments && segments.length && d.target.name === 'Revenue') {
+          const seg = segments.find(s => s.segment === link.source.name);
+          if (seg && typeof seg.yoy === 'number') {
+            return (seg.yoy > 0 ? '+' : '') + seg.yoy.toFixed(1) + '% YoY';
+          }
+        }
+        const key = growthKeyMap[d.target.name];
+        let val = growthData[key];
+        if (val == null || isNaN(val)) return '';
+        if (Math.abs(val) < 1) val = val * 100;
+        return (val > 0 ? '+' : '') + val.toFixed(1) + '% YoY';
+      });
 
     // --- Tooltip ---
     const tooltip = d3.select('body').append('div')
