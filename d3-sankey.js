@@ -29,18 +29,105 @@
     }
   }
 
-  window.renderD3Sankey = function(data, segments, ticker, detailedExpenses, growthData) {
-    d3Div.innerHTML = '';
-    const margin = { left: 90, right: 130, top: 40, bottom: 80 };
-    const width = Math.max(900, Math.min(window.innerWidth * 0.95, 1500));
-    const height = 600;
-    const svg = d3.select(d3Div).append('svg')
-      .attr('width', width)
-      .attr('height', height);
-    const chartGroup = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-    const chartWidth = width - margin.left - margin.right;
-    const chartHeight = height - margin.top - margin.bottom;
+  // --- Helper to fetch image and convert to data URL ---
+async function toDataURL(url) {
+  if (!url) return null;
+  if (url.startsWith('data:')) return url;
+  try {
+    const res = await fetch(url, {mode: 'cors'});
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.error('Failed to convert image to data URL:', url, e);
+    return url; // fallback to original
+  }
+}
 
+window.renderD3Sankey = async function(data, segments, ticker, detailedExpenses, growthData) {
+    // Flag if company is profitable overall (used for coloring and flow handling)
+    const isProfitable = data.operatingIncome > 0;
+    const isNetProfitable = data.netIncome > 0;
+    const isGrossProfitable = data.grossProfit > 0;
+    console.log(`DEBUG: Company profitability status: Gross=${isGrossProfitable}, Operating=${isProfitable}, Net=${isNetProfitable}`);
+    console.log(`DEBUG: Values - Gross=${data.grossProfit}, Operating=${data.operatingIncome}, Net=${data.netIncome}`);
+    d3Div.innerHTML = '';
+    console.log('DEBUG renderD3 data:', data);
+    // AI-powered relabeler for revenue segments
+    function shortenSegmentName(name) {
+      const overrides = [
+        {regex: /cloud/i, label: 'Cloud'},
+        {regex: /office/i, label: 'Office'},
+        {regex: /linkedin/i, label: 'LinkedIn'}
+      ];
+      for (const {regex,label} of overrides) if (regex.test(name)) return label;
+      const generic = ['corporation','corporations','inc','inc.','co','company','ltd','plc','systems','system','services','service','products','product','solutions','solution','division','and','&'];
+      let parts = name.split(/\s+/).filter(w => !generic.includes(w.toLowerCase()));
+      if (parts.length === 0) parts = name.split(/\s+/);
+      if (parts.length > 2) {
+        const last = parts[parts.length-1];
+        return last.charAt(0).toUpperCase()+last.slice(1).toLowerCase();
+      }
+      return parts.map(w => w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
+    }
+    // Dynamic margins: left based on label length, static right to fit labels
+    const segLabels = segments.map(s => shortenSegmentName(s.segment) + ' - ' + formatDollars(s.revenue || 0));
+    const maxChars = segLabels.length ? Math.max(...segLabels.map(l => l.length)) : 4;
+    // Increased padding from 20 to 30 and char width from 7 to 7.5
+    const leftMargin = Math.max(50, maxChars * 7.5 + 30);
+    // Increased right margin from 200 to 220
+    const rightMargin = 220;
+    const margin = { left: leftMargin, right: rightMargin, top: 40, bottom: 80 };
+    // Use container width so chart always fits display area
+    const width = d3Div.clientWidth;
+    const height = 600;
+    // Make SVG responsive to container width to avoid clipping labels
+    const svg = d3.select(d3Div).append('svg')
+      .attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('width', '100%')
+      .attr('height', height)
+      .attr('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    // Header: logo, title, and subtitles
+    const headerOffset = 80;
+    const titleY = 30;
+    const subtitle1Y = 50;
+    const subtitle2Y = 70;
+    const nameText = data.companyName || data.symbol || ticker;
+    const logoSize = 60;
+    const spacing = 10;
+    // Measure company name width
+    const temp = svg.append('text').attr('x',0).attr('y',-9999).style('font-size','20px').style('font-weight','bold').text(nameText);
+    const textBBox = temp.node().getBBox(); temp.remove();
+    const totalW = logoSize + spacing + textBBox.width;
+    const extraLogoOffset = 50; // push logo further left
+    const startX = 0; // align flush to left edge of display area
+    // Logo on left (embed as data URL for html2canvas)
+    let logoDataUrl = data.logo ? await toDataURL(data.logo) : null;
+    if (logoDataUrl) {
+      svg.append('image').attr('x', startX).attr('y', titleY - logoSize / 2).attr('width', logoSize).attr('height', logoSize).attr('xlink:href', logoDataUrl);
+    }
+    // Company name text
+    svg.append('text').attr('x', startX + logoSize + spacing).attr('y', titleY).attr('text-anchor','start').style('font-size','20px').style('font-weight','bold').text(nameText);
+    // Subtitles
+    svg.append('text').attr('x', startX + logoSize + spacing).attr('y', subtitle1Y).attr('text-anchor','start').style('font-size','12px').text('TTM Income Statement');
+    svg.append('text').attr('x', startX + logoSize + spacing).attr('y', subtitle2Y).attr('text-anchor','start').style('font-size','12px').text(`TTM as of ${data.date}`);
+    // FirstLookStocks watermark logo at bottom right (embed as data URL for html2canvas)
+    let watermarkUrl = await toDataURL('/firstlookstocks-watermark.png');
+    svg.append('image')
+      .attr('x', width - 160)
+      .attr('y', height - 100)
+      .attr('width', 160)
+      .attr('height', 100)
+      .attr('href', watermarkUrl)
+      .attr('xlink:href', watermarkUrl)
+      .attr('opacity', 0.8);
+    const chartGroup = svg.append('g').attr('transform', `translate(${margin.left},${margin.top + headerOffset})`);
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom - headerOffset;
     // Threshold for filtering small nodes/links
     const MIN_NODE_VALUE = 1e6; // $1M
 
@@ -58,12 +145,24 @@
       return nodeMap[name];
     }
     
-    // Helper to add a link if the value is positive
+    // Helper to add a link with proper handling of negative values
     function addLink(source, target, value) {
-      if (value <= MIN_NODE_VALUE) return;
+      // For sankey visualization, we need positive values
+      // But we'll track if it was originally negative
+      let absValue = Math.abs(value || 0);
+      if (!absValue) return; // Skip zero values
+      
+      // Only include links with meaningful values
+      if (absValue < 1e5) return; // Skip tiny flows less than $100k
+      
       const sourceIdx = nodeMap[source];
       const targetIdx = nodeMap[target];
-      links.push({ source: sourceIdx, target: targetIdx, value });
+      links.push({ 
+        source: sourceIdx, 
+        target: targetIdx, 
+        value: absValue,
+        isNegative: value < 0 // Track if original value was negative
+      });
     }
     
     // --- Product Segments: Explicit Order ---
@@ -116,14 +215,16 @@
       }
     }
     
+    // Ensure Cost of Revenue exists before sub-breakdown
+    addNode('Cost of Revenue');
+    
     // --- Cost of Revenue Sub-Details Breakdown ---
     if (detailedExpenses) {
       console.log('DEBUG: detailedExpenses for Cost of Revenue', detailedExpenses);
     }
     const corDetailNames = [
       { key: 'costOfGoodsSold', label: 'COGS' },
-      { key: 'depreciation', label: 'Depreciation' },
-      { key: 'amortization', label: 'Amortization' },
+      { key: 'depreciation', label: 'Depreciation & Amortization' },
       { key: 'otherCostOfRevenue', label: 'Other Cost of Revenue' }
     ];
     let hasCorDetails = false;
@@ -145,9 +246,6 @@
       }
     }
 
-    // Add standard Cost of Revenue node
-    addNode('Cost of Revenue');
-    
     // Rest of standard nodes
     const stdNodes = [
       'Operating Income',
@@ -157,27 +255,75 @@
     ];
     stdNodes.forEach(addNode);
     
-    // Segment links to Revenue
-    if (segments.length > 0) {
+    // --- UNIVERSAL REVENUE SEGMENT AUTO-SCALING FOR PERFECT ALIGNMENT ---
+    // Use only the original values for scaling; do not mutate the segment objects yet
+    if (segments && Array.isArray(segments) && segments.length > 0 && typeof data.revenue === 'number' && data.revenue > 0) {
+      const segSum = segments.reduce((sum, s) => sum + (typeof s.revenue === 'number' ? s.revenue : 0), 0);
+      // Compute scale factor but do NOT mutate segments
+      let scale = 1;
+      if (Math.abs(segSum - data.revenue) > 1e-2 && segSum > 0) {
+        scale = data.revenue / segSum;
+      }
+      // Now add links from each segment to Revenue using the scaled value, but keep original segment values for tooltips/labels
       segments.forEach(s => {
-        addLink(s.segment, 'Revenue', s.revenue);
+        addLink(s.segment, 'Revenue', s.revenue * scale);
       });
     }
     
     // Revenue to Gross Profit and Cost of Revenue
-    addLink('Revenue', 'Gross Profit', data.grossProfit);
-    addLink('Revenue', 'Cost of Revenue', data.costOfRevenue);
+    // For negative gross profit, handle specially
+    if (isGrossProfitable) {
+      // Normal case: positive gross profit
+      addLink('Revenue', 'Gross Profit', data.grossProfit);
+      addLink('Revenue', 'Cost of Revenue', data.costOfRevenue);
+    } else {
+      // Negative gross profit case - costs exceed revenue
+      // Show full revenue going to Cost of Revenue
+      addLink('Revenue', 'Cost of Revenue', data.revenue);
+      
+      // Then show the excess cost beyond revenue as a separate flow
+      // This makes it clear that costs exceeded revenue
+      const excessCost = data.costOfRevenue - data.revenue;
+      if (excessCost > 0) {
+        // Connect Cost of Revenue directly to Gross Profit to show the excess
+        addLink('Cost of Revenue', 'Gross Profit', Math.abs(data.grossProfit));
+      }
+    }
 
     // --- Updated Operating Expenses Flow --- 
     const totalOperatingExpenses = Math.abs(data.operatingExpenses);
 
     // Link from Gross Profit to the intermediate Operating Expenses node
     if (totalOperatingExpenses > 0) {
-        addLink('Gross Profit', 'Operating Expenses', totalOperatingExpenses);
+        // Ensure Operating Expenses doesn't exceed Gross Profit
+        const opExpValue = Math.min(totalOperatingExpenses, data.grossProfit);
+        addLink('Gross Profit', 'Operating Expenses', opExpValue);
     }
 
-    // Link from Gross Profit to Operating Income
-    addLink('Gross Profit', 'Operating Income', data.operatingIncome);
+    // --- Financially accurate handling for Operating Income/Loss flows ---
+    if (isProfitable) {
+      // Normal profitable case: connect Gross Profit to Operating Income
+      addLink('Gross Profit', 'Operating Income', data.operatingIncome);
+    } else {
+      // FINANCIAL ACCURACY PRIORITY: Use the actual loss amount
+      // For unprofitable companies, create a dedicated Operating Loss node with accurate value
+      // Rather than trying to show flows to a negative value, which isn't possible in Sankey
+      
+      // Create a dedicated node with exactly the right size
+      addNode('Operating Loss');
+      
+      // Use a minimal connection to ensure the node appears in the correct position
+      // But has the accurate size representing the actual loss
+      const MINIMUM_VISIBLE_FLOW = 1e5; // $100k minimum visibility
+      
+      // Connect using the absolute value of the operating loss
+      // This ensures the node size accurately reflects the financial reality
+      const absLoss = Math.abs(data.operatingIncome);
+      addLink('Operating Expenses', 'Operating Loss', Math.max(absLoss, MINIMUM_VISIBLE_FLOW));
+      
+      // Remove the original 'Operating Income' node by not creating any links to it
+      nodeMap['Operating Income'] = undefined;
+    }
 
     // Links from the intermediate Operating Expenses node to detailed expenses
     if (hasDetailedOpEx) {
@@ -206,16 +352,66 @@
  
     // Handle Interest Expense/Income
     const interestValue = Math.abs(data.interestExpense || -data.interestIncome || 0);
-    if (interestValue > 0) {
-      addLink('Operating Income', 'Interest Expense', interestValue);
+    // Link from Operating Income to Income Tax Expense
+    if (data.incomeTaxExpense && data.incomeTaxExpense > 0) {
+      addLink('Operating Income', 'Income Tax Expense', data.incomeTaxExpense);
     }
     
-    // Directly branch Income Tax Expense and Net Income from Operating Income
-    addLink('Operating Income', 'Income Tax Expense', data.incomeTaxExpense);
-    addLink('Operating Income', 'Net Income', data.netIncome);
+    // Link from Operating Income to Interest Expense
+    if (data.interestExpense && data.interestExpense > 0) {
+      addLink('Operating Income', 'Interest Expense', data.interestExpense);
+    }
+    
+    // --- Financially accurate Net Income/Loss handling ---
+    if (isNetProfitable) {
+      // For profitable companies, show standard flow
+      if (isProfitable) {
+        // Normal case: operating income flows to net income
+        addLink('Operating Income', 'Net Income', data.netIncome);
+      } else {
+        // Unusual case: operating loss but net profit (tax credits, one-time gains)
+        // Connect from Operating Loss to Net Income
+        addLink('Operating Loss', 'Net Income', data.netIncome);
+      }
+    } else {
+      // FINANCIAL ACCURACY PRIORITY: For unprofitable net results
+      // Create a dedicated Net Loss node with the exact right size
+      addNode('Net Loss');
+      
+      // Use absolute value to accurately represent the loss amount
+      const absNetLoss = Math.abs(data.netIncome);
+      const MINIMUM_VISIBLE_FLOW = 1e5; // $100k minimum visibility
+      
+      if (isProfitable) {
+        // Case: Operating profit turned into net loss (due to taxes/interest/writedowns)
+        // Show flows from the expense items that caused the loss
+        if (data.incomeTaxExpense > 0 && data.interestExpense > 0) {
+          // Split between tax and interest if both present
+          addLink('Income Tax Expense', 'Net Loss', absNetLoss * 0.5);
+          addLink('Interest Expense', 'Net Loss', absNetLoss * 0.5);
+        } else if (data.incomeTaxExpense > 0) {
+          // Just tax expense
+          addLink('Income Tax Expense', 'Net Loss', absNetLoss);
+        } else if (data.interestExpense > 0) {
+          // Just interest expense
+          addLink('Interest Expense', 'Net Loss', absNetLoss);
+        } else {
+          // Fallback if no clear source
+          addLink('Operating Income', 'Net Loss', Math.max(absNetLoss, MINIMUM_VISIBLE_FLOW));
+        }
+      } else {
+        // Case: Operating loss led to net loss
+        // Connect from Operating Loss to Net Loss
+        addLink('Operating Loss', 'Net Loss', Math.max(absNetLoss, MINIMUM_VISIBLE_FLOW));
+      }
+      
+      // Remove the original 'Net Income' node by not creating any links to it
+      nodeMap['Net Income'] = undefined;
+    }
 
     // Ensure growthData is defined and map node names to growth keys
     growthData = growthData || {};
+    // Map node names to actual FMP API growth fields
     const growthKeyMap = {
       'Revenue': 'growthRevenue',
       'Cost of Revenue': 'growthCostOfRevenue',
@@ -230,7 +426,10 @@
       'Marketing Expenses': 'growthSellingAndMarketingExpenses',
       'Other Operating Expenses': 'growthOtherExpenses',
       'Other Expenses': 'growthOtherExpenses',
-      'Depreciation': 'growthDepreciationAndAmortization'
+      'Depreciation': 'growthDepreciationAndAmortization',
+      'COGS': 'growthCostOfRevenue',
+      'Depreciation & Amortization': 'growthDepreciationAndAmortization',
+      'Other Cost of Revenue': 'growthCostOfRevenue'
     };
 
     // Remove nodes with no incoming or outgoing links, or with very small value
@@ -251,13 +450,20 @@
     nodeMap = {};
     nodeNames.forEach((n, i) => { nodeMap[n] = i; });
 
+    // Dynamic Sankey node sizing for adaptive zoom
+    const dynamicNodeWidth = Math.max(30, chartWidth * 0.03);
+    const dynamicNodePadding = Math.max(8, chartHeight * 0.02);
     // D3 Sankey layout
     const sankey = d3.sankey()
-      .nodeWidth(30)
-      .nodePadding(32)
+      .nodeWidth(dynamicNodeWidth)
+      .nodePadding(dynamicNodePadding)
       .size([chartWidth, chartHeight])
       .nodeSort((a, b) => {
-        // Custom: Gross Profit above Cost of Revenue
+        // Custom vertical ordering: Net Income > Operating Income > Gross Profit > others > Cost of Revenue
+        if (a.name === 'Net Income') return -1;
+        if (b.name === 'Net Income') return 1;
+        if (a.name === 'Operating Income') return -1;
+        if (b.name === 'Operating Income') return 1;
         if (a.name === 'Gross Profit') return -1;
         if (b.name === 'Gross Profit') return 1;
         if (a.name === 'Cost of Revenue') return 1;
@@ -270,6 +476,26 @@
       links
     };
     const {nodes, links: layoutLinks} = sankey({...sankeyData});
+
+    // Align Cost of Revenue detail nodes under Operating Expenses column
+    const opExpNode = nodes.find(n => n.name === 'Operating Expenses');
+    if (opExpNode) {
+      corDetailNames.forEach(cat => {
+        const detNode = nodes.find(n => n.name === cat.label);
+        if (detNode) {
+          detNode.x0 = opExpNode.x0;
+          detNode.x1 = opExpNode.x1;
+        }
+      });
+    }
+
+    // Move Cost of Revenue to Gross Profit column to shorten revenue→CoR path
+    const costNode = nodes.find(n => n.name === 'Cost of Revenue');
+    const grossNode = nodes.find(n => n.name === 'Gross Profit');
+    if (costNode && grossNode) {
+      costNode.x0 = grossNode.x0;
+      costNode.x1 = grossNode.x1;
+    }
 
     // --- POST-PROCESS: Separate rightmost nodes if too close ---
     const rightEdgeThreshold = chartWidth - 40;
@@ -297,295 +523,308 @@
       }
     }
 
-    // --- Universal horizontal gap limiting for connected nodes ---
-    // Prevent pathways from being too long and keep horizontally-related nodes close
-    const MAX_NODE_X_GAP = 240; // px, as requested
-    layoutLinks.forEach(link => {
-      if (!link.source || !link.target) return;
-      const sourceCenterX = (link.source.x0 + link.source.x1) / 2;
-      const targetCenterX = (link.target.x0 + link.target.x1) / 2;
-      const xGap = targetCenterX - sourceCenterX;
-      if (xGap > MAX_NODE_X_GAP) {
-        // Move target node closer, but not overlapping previous node in its column
-        const shift = xGap - MAX_NODE_X_GAP;
-        // Only move if this won't overlap previous node
-        const colNodes = nodes.filter(n => n.x0 === link.target.x0 && n !== link.target).sort((a, b) => a.y0 - b.y0);
-        let canMove = true;
-        colNodes.forEach(n => {
-          // If target node's new x0 would overlap another node, don't move
-          if (Math.abs((link.target.x0 - shift) - n.x1) < 2) {
-            canMove = false;
-          }
+    // --- UNIVERSAL PIXEL-PERFECT NODE AND LINK ALIGNMENT ---
+    function assignLinkSlots(nodes, links) {
+      const MIN_NODE_HEIGHT = 1; // px, only for visibility
+      // First, compute required node height for each node
+      nodes.forEach(node => {
+        const outgoing = links.filter(l => l.source === node);
+        const incoming = links.filter(l => l.target === node);
+        const outSum = outgoing.reduce((sum, l) => sum + l.value, 0);
+        const inSum = incoming.reduce((sum, l) => sum + l.value, 0);
+        const nodeHeight = Math.max(outSum, inSum, MIN_NODE_HEIGHT);
+        // Set node height in pixels, using same scale as before
+        const pxPerValue = (node.y1 - node.y0) / Math.max(node.value || 1, nodeHeight);
+        node._trueHeight = nodeHeight * pxPerValue;
+        node.y1 = node.y0 + node._trueHeight;
+      });
+      // Now assign link slots pixel-perfectly
+      nodes.forEach(node => {
+        const outgoing = links.filter(l => l.source === node);
+        let y = node.y0;
+        outgoing.sort((a, b) => (a.target.y0 || 0) - (b.target.y0 || 0));
+        const pxPerValue = node._trueHeight / Math.max(1, outgoing.reduce((sum, l) => sum + l.value, 0));
+        outgoing.forEach(link => {
+          let h = link.value * pxPerValue;
+          link._sy0 = y;
+          link._sy1 = y + h;
+          link.y0 = y + h / 2;
+          y += h;
         });
-        if (canMove && link.target.x0 - shift > link.source.x1 + 10) { // 10px min gap
-          link.target.x0 -= shift;
-          link.target.x1 -= shift;
-        }
-      }
-    });
-    // For expense detail nodes, align their x positions to be close to their parent and preserve width
-    const opExNodeFinal = nodes.find(n => n && n.name === 'Operating Expenses');
-    if (opExNodeFinal) {
-      const opExDetailNodes = nodes.filter(n =>
-        links.some(l => l.source === opExNodeFinal && l.target === n)
-      );
-      const baseX0 = opExNodeFinal.x1 + 30;
-      opExDetailNodes.forEach((node, idx) => {
-        const width = node.x1 - node.x0;
-        node.x0 = baseX0;
-        node.x1 = baseX0 + width;
-        // Validation: Clamp width if excessive
-        if (node.x1 - node.x0 > 160) {
-          node.x1 = node.x0 + 160;
-        }
-        if (node.x1 - node.x0 < 20) {
-          node.x1 = node.x0 + 20;
-        }
       });
-    }
-
-    // --- Validation: Clamp node widths and heights ---
-    nodes.forEach(node => {
-      if (node.x1 - node.x0 > 220) node.x1 = node.x0 + 220;
-      if (node.x1 - node.x0 < 18) node.x1 = node.x0 + 18;
-      if (node.y1 - node.y0 < 8) node.y1 = node.y0 + 8;
-    });
-
-    // --- Manual Node Position Adjustments ---
-    const opExNode = nodes.find(n => n && n.name === 'Operating Expenses');
-    if (opExNode && nodes.find(n => n && n.name === 'Net Income') && opExNode.y0 < nodes.find(n => n && n.name === 'Net Income').y1) {
-        const originalY0 = opExNode.y0; // Store original position
-        const padding = 25; // Vertical space between OpInc bottom and OpEx top
-        const currentHeight = opExNode.y1 - opExNode.y0;
-        const newY0 = nodes.find(n => n && n.name === 'Net Income').y1 + padding;
-
-        opExNode.y0 = newY0;
-        opExNode.y1 = newY0 + currentHeight;
-
-        const deltaY = opExNode.y0 - originalY0; // Calculate the shift amount
-
-        // Update connected links
-        layoutLinks.forEach(link => {
-            if (link.source === opExNode) {
-                link.y0 += deltaY; // Shift link start point
-            }
-            if (link.target === opExNode) {
-                link.y1 += deltaY; // Shift link end point
-            }
+      nodes.forEach(node => {
+        const incoming = links.filter(l => l.target === node);
+        let y = node.y0;
+        incoming.sort((a, b) => (a.source.y0 || 0) - (b.source.y0 || 0));
+        const pxPerValue = node._trueHeight / Math.max(1, incoming.reduce((sum, l) => sum + l.value, 0));
+        incoming.forEach(link => {
+          let h = link.value * pxPerValue;
+          link._ty0 = y;
+          link._ty1 = y + h;
+          link.y1 = y + h / 2;
+          y += h;
         });
-    }
-    // --- Manual Y Adjustment for Net Income and Income Tax Expense ---
-    const netIncomeNode2 = nodes.find(n => n && n.name === 'Net Income');
-    const taxNode2 = nodes.find(n => n && n.name === 'Income Tax Expense');
-    if (netIncomeNode2 && taxNode2 && netIncomeNode2.y0 > taxNode2.y0) {
-      // Swap y positions so Net Income is above
-      const netIncomeHeight = netIncomeNode2.y1 - netIncomeNode2.y0;
-      const taxHeight = taxNode2.y1 - taxNode2.y0;
-      const swapGap = 16;
-      // Set Net Income at the higher y, then tax below
-      const newNetIncomeY0 = Math.max(30, taxNode2.y0 - netIncomeHeight - swapGap);
-      const newTaxY0 = newNetIncomeY0 + netIncomeHeight + swapGap;
-      const netDelta = newNetIncomeY0 - netIncomeNode2.y0;
-      const taxDelta = newTaxY0 - taxNode2.y0;
-      netIncomeNode2.y0 = newNetIncomeY0;
-      netIncomeNode2.y1 = newNetIncomeY0 + netIncomeHeight;
-      taxNode2.y0 = newTaxY0;
-      taxNode2.y1 = newTaxY0 + taxHeight;
-      // Update links to match new node positions
-      links.forEach(link => {
-        if (link.source === netIncomeNode2) link.y0 += netDelta;
-        if (link.target === netIncomeNode2) link.y1 += netDelta;
-        if (link.source === taxNode2) link.y0 += taxDelta;
-        if (link.target === taxNode2) link.y1 += taxDelta;
-      });
-    }
-    // --- Manual X Adjustments for Expense Details ---
-    if (nodes.find(n => n && n.name === 'Net Income')) {
-      // Find all nodes that are direct children of Operating Expenses (i.e., detailed expense nodes)
-      const opExDetailNodes = nodes.filter(n =>
-          links.some(l => l.source === opExNode && l.target === n)
-      );
-      // Place them just before Net Income's x0
-      const detailX0 = nodes.find(n => n && n.name === 'Net Income').x0 - 5; // 5px gap before Net Income
-      const detailX1 = detailX0 + (opExDetailNodes[0]?.x1 - opExDetailNodes[0]?.x0 || 30); // Keep width
-      // Optionally stagger y for clarity
-      const detailSpacing = 10;
-      opExDetailNodes.forEach((node, idx) => {
-          node.x0 = detailX0;
-          node.x1 = detailX1;
-          // Lower all detailed expense nodes by 30px
-          node.y0 += 30;
-          node.y1 += 30;
-          // Update links to match new node position
-          links.forEach(link => {
-              if (link.source === node) {
-                link.y0 += 30;
-              }
-              if (link.target === node) {
-                link.y1 += 30;
-              }
-          });
       });
     }
 
-    // --- Robust, cascading universal node margin logic for all columns, with overflow handling ---
-    const MIN_NODE_MARGIN = 8;
-    const xPositions = [...new Set(nodes.map(n => n.x0))];
-    xPositions.forEach(x0 => {
-      const colNodes = nodes.filter(n => n.x0 === x0).sort((a, b) => a.y0 - b.y0);
-      if (colNodes.length === 0) return;
-      // Calculate total needed height
-      const totalNodeHeight = colNodes.reduce((sum, n) => sum + (n.y1 - n.y0), 0);
-      const totalMargin = (colNodes.length - 1) * MIN_NODE_MARGIN;
-      const totalNeeded = totalNodeHeight + totalMargin;
-      let scale = 1;
-      if (typeof chartHeight !== 'undefined' && totalNeeded > chartHeight) {
-        // Shrink all node heights proportionally
-        scale = (chartHeight - totalMargin) / totalNodeHeight;
-      }
-      // Place nodes with margin, shrinking if needed
-      let yCursor = colNodes[0].y0;
-      colNodes.forEach((node, idx) => {
-        if (!node) return;
-        const origHeight = node.y1 - node.y0;
-        const height = origHeight * scale;
-        if (idx === 0) {
-          node.y0 = yCursor;
-          node.y1 = node.y0 + height;
-        } else {
-          node.y0 = yCursor + MIN_NODE_MARGIN;
-          node.y1 = node.y0 + height;
-        }
-        yCursor = node.y1;
-      });
-    });
-    // After node adjustment, update links' y0/y1 as needed for accuracy
-    layoutLinks.forEach(link => {
-      if (link.source) {
-        link.y0 = link.source.y0 + (link.source.y1 - link.source.y0) / 2;
-      }
-      if (link.target) {
-        link.y1 = link.target.y0 + (link.target.y1 - link.target.y0) / 2;
-      }
-    });
+    assignLinkSlots(nodes, layoutLinks);
 
-    // --- Advanced, universal anti-overlap and anti-crossing for ALL multi-link nodes ---
+    // --- UNIVERSAL NODE VERTICAL ORDERING: PROFIT NODES ABOVE EXPENSES, WITH GROUP SEPARATION, AFTER CHILD GAPS ---
     function isProfitNode(node) {
       if (!node || !node.name) return false;
+      // Special cases for highest priority nodes
+      if (node.name === 'Net Income') return true;
+      if (node.name === 'Operating Income') return true;
       const name = node.name.toLowerCase();
       return (
         name.includes('profit') ||
-        name.includes('income') && !name.includes('expense')
+        (name.includes('income') && !name.includes('expense'))
       );
     }
-    function reorderOutgoingLinksProfitAboveCost(nodes, links) {
-      nodes.forEach(node => {
-        // Find all outgoing links from this node
-        const outgoing = links.filter(l => l.source === node);
-        if (outgoing.length <= 1) return;
-        // First: sort by profit-above-cost (green above red)
-        outgoing.sort((a, b) => {
-          const aProfit = isProfitNode(a.target);
-          const bProfit = isProfitNode(b.target);
-          if (aProfit && !bProfit) return -1;
-          if (!aProfit && bProfit) return 1;
-          // Within group, sort by y0 for smoothness
-          return (a.target.y0 || 0) - (b.target.y0 || 0);
-        });
-        // Calculate total value and vertical space
-        const totalValue = outgoing.reduce((sum, l) => sum + l.value, 0);
-        let yCursor = node.y0;
-        outgoing.forEach(link => {
-          // Height of this link proportional to its value
-          const linkHeight = (link.value / totalValue) * (node.y1 - node.y0);
-          // Center of this link's exit
-          link.y0 = yCursor + linkHeight / 2;
-          yCursor += linkHeight;
-        });
-      });
+    function isExpenseNode(node) {
+      if (!node || !node.name) return false;
+      const name = node.name.toLowerCase();
+      return (
+        name.includes('expense') ||
+        name.includes('cost')
+      );
     }
-    reorderOutgoingLinksProfitAboveCost(nodes, layoutLinks);
-    // --- Enforce consistent vertical order at Revenue node (for incoming) ---
-    // (Already handled above for segment flows)
-    // --- Custom vertical order and y-positioning for OpEx and CoR detail nodes ---
-    const opExDetailNames = [
-      'R&D Expenses', 'SG&A Expenses', 'Marketing Expenses', 'Other Operating Expenses'
-    ];
-    const corDetailNodeNames = [
-      'COGS', 'Depreciation', 'Amortization', 'Other Cost of Revenue'
-    ];
-    const opExYOffset = 50;
-    const corYOffset = 120; // Place below OpEx details
+    const MIN_GROUP_GAP = 16;
+    const columns = {};
     nodes.forEach(node => {
-      if (opExDetailNames.includes(node.name)) {
-        node.y0 += opExYOffset;
-        node.y1 += opExYOffset;
-      }
-      if (corDetailNodeNames.includes(node.name)) {
-        node.y0 += corYOffset;
-        node.y1 += corYOffset;
-      }
+      const x = node.x0;
+      if (!columns[x]) columns[x] = [];
+      columns[x].push(node);
     });
-    // Only shift the target side (y1) of links going to OpEx or CoR detail nodes
-    layoutLinks.forEach(link => {
-      if (opExDetailNames.includes(link.target.name)) {
-        link.y1 += opExYOffset;
+    Object.values(columns).forEach(colNodes => {
+      // Column-specific override: add spacing for Operating Expenses column
+      if (opExpNode && Math.abs(colNodes[0].x0 - opExpNode.x0) < 1e-6) {
+        const detailLabels = corDetailNames.map(c => c.label);
+        colNodes.sort((a, b) => {
+          const getPri = name =>
+            name === 'Operating Income' ? 0 :
+            name === 'Operating Expenses' ? 1 :
+            detailLabels.includes(name) ? 2 :
+            3;
+          const ap = getPri(a.name), bp = getPri(b.name);
+          return ap - bp || a.y0 - b.y0;
+        });
+        const gapIncomeToOpExp = 10; // px cushion between Operating Income and Operating Expenses
+        const gapOpExpToDetails = 60; // px cushion between Operating Expenses and cost details
+        const gapDetailNodes = 10; // px cushion between cost detail nodes
+        let y = colNodes[0] ? colNodes[0].y0 : 0;
+        colNodes.forEach((node, i) => {
+          if (i === 1) y += gapIncomeToOpExp;
+          if (i === 2) y += gapOpExpToDetails;
+          if (i >= 3) y += gapDetailNodes;
+          const h = node.y1 - node.y0;
+          node.y0 = y;
+          node.y1 = y + h;
+          y += h;
+        });
+        return; // skip default grouping for this column
       }
-      if (corDetailNodeNames.includes(link.target.name)) {
-        link.y1 += corYOffset;
-      }
-    });
-    // Redraw nodes and links with new positions
-    chartGroup.selectAll('*').remove();
-
-    // --- Enforce order-preserving entry for revenue segment links into Revenue node ---
-    // After all spacing/margin logic, align segment entry points to match left node order
-    const revenueNode = nodes.find(n => n && n.name === 'Revenue');
-    if (revenueNode) {
-      // Get all segment nodes (sources to Revenue), sorted by y0
-      const segmentLinks = layoutLinks.filter(l => l.target === revenueNode && l.source && l.source.x0 < revenueNode.x0);
-      const segmentNodesOrdered = segmentLinks.map(l => l.source).sort((a, b) => a.y0 - b.y0);
-      // Compute the available height and slot heights
-      const totalHeight = revenueNode.y1 - revenueNode.y0;
-      const slotHeights = segmentNodesOrdered.map(n => n.y1 - n.y0);
-      let yCursor = revenueNode.y0;
-      segmentNodesOrdered.forEach((segNode, idx) => {
-        const link = segmentLinks.find(l => l.source === segNode);
-        const slotHeight = slotHeights[idx];
-        if (link) {
-          // Center of this slot
-          link.y1 = yCursor + slotHeight / 2;
+      // Sort: profit nodes first, then others, then expense nodes
+      colNodes.sort((a, b) => {
+        const aProfit = isProfitNode(a), bProfit = isProfitNode(b);
+        const aExpense = isExpenseNode(a), bExpense = isExpenseNode(b);
+        if (aProfit && !bProfit) return -1;
+        if (!aProfit && bProfit) return 1;
+        if (aExpense && !bExpense) return 1;
+        if (!aExpense && bExpense) return -1;
+        // Both in same group: for expense group, bring Operating Income children up
+        if (aExpense && bExpense) {
+          const aFromOpInc = layoutLinks.some(l => l.target === a && l.source.name === 'Operating Income');
+          const bFromOpInc = layoutLinks.some(l => l.target === b && l.source.name === 'Operating Income');
+          if (aFromOpInc && !bFromOpInc) return -1;
+          if (!aFromOpInc && bFromOpInc) return 1;
         }
-        yCursor += slotHeight;
+        // Fallback: preserve current vertical order
+        return a.y0 - b.y0;
+      });
+      let y = colNodes[0] ? colNodes[0].y0 : 0;
+      // Find group boundaries
+      let lastProfitIdx = -1, firstExpenseIdx = -1;
+      for (let i = 0; i < colNodes.length; ++i) {
+        if (isProfitNode(colNodes[i])) lastProfitIdx = i;
+        if (firstExpenseIdx === -1 && isExpenseNode(colNodes[i])) firstExpenseIdx = i;
+      }
+      for (let i = 0; i < colNodes.length; ++i) {
+        const node = colNodes[i];
+        const h = node.y1 - node.y0;
+        node.y0 = y;
+        node.y1 = y + h;
+        y += h;
+        // Insert gap after last profit node, before first expense node
+        if (i === lastProfitIdx && firstExpenseIdx > lastProfitIdx) {
+          y += MIN_GROUP_GAP;
+        }
+      }
+    });
+    // Final re-assign link slots after all stacking
+    assignLinkSlots(nodes, layoutLinks);
+
+    // Wave effect: float profit nodes upward progressively
+    const profitNodes = nodes.filter(isProfitNode).sort((a, b) => a.x0 - b.x0);
+    const waveAmp = 50; // increased amplitude for visible wave effect
+    const stepY = profitNodes.length > 1 ? waveAmp / (profitNodes.length - 1) : 0;
+    profitNodes.forEach((n, i) => {
+      n.y0 -= stepY * i;
+      n.y1 -= stepY * i;
+    });
+    assignLinkSlots(nodes, layoutLinks);
+
+    // --- UNIVERSAL MINIMUM VERTICAL GAP BETWEEN LEAF (END) NODES ONLY ---
+    const MIN_LEAF_GAP = 18;
+    const leafColumns = {};
+    nodes.forEach(node => {
+      const isLeaf = !layoutLinks.some(l => l.source === node);
+      if (!isLeaf) return;
+      const x = node.x0;
+      if (!leafColumns[x]) leafColumns[x] = [];
+      leafColumns[x].push(node);
+    });
+    Object.values(leafColumns).forEach(leafNodes => {
+      if (leafNodes.length < 2) return;
+      leafNodes.sort((a, b) => {
+        const aProfit = isProfitNode(a), bProfit = isProfitNode(b);
+        if (aProfit && !bProfit) return -1;
+        if (!aProfit && bProfit) return 1;
+        const aFromOpInc = layoutLinks.some(l => l.target === a && l.source.name === 'Operating Income');
+        const bFromOpInc = layoutLinks.some(l => l.target === b && l.source.name === 'Operating Income');
+        if (aFromOpInc && !bFromOpInc) return -1;
+        if (!aFromOpInc && bFromOpInc) return 1;
+        return a.y0 - b.y0;
+      });
+      let y0 = leafNodes[0].y0;
+      leafNodes.forEach(n => {
+        const h = n.y1 - n.y0;
+        n.y0 = y0;
+        n.y1 = y0 + h;
+        y0 += h + MIN_LEAF_GAP;
+      });
+    });
+    // Final re-assign for leafs
+    assignLinkSlots(nodes, layoutLinks);
+
+    // --- UNIVERSAL MINIMUM GAP BETWEEN REVENUE SEGMENTATION NODES (LEFTMOST COLUMN) ---
+    const MIN_LEFT_GAP = 18;
+    const minX = Math.min(...nodes.map(n => n.x0));
+    const leftNodes = nodes.filter(n => n.x0 === minX);
+    if (leftNodes.length > 1) {
+      leftNodes.sort((a, b) => a.y0 - b.y0);
+      let y1 = leftNodes[0].y0;
+      leftNodes.forEach(n => {
+        const h = n.y1 - n.y0;
+        n.y0 = y1;
+        n.y1 = y1 + h;
+        y1 += h + MIN_LEFT_GAP;
       });
     }
+    // Final re-assign for leftmost column
+    assignLinkSlots(nodes, layoutLinks);
 
-    // Color logic
+    // Color logic - accounts for profitability status
     function nodeColor(name) {
       if (segments.map(s => s.segment).includes(name) || name === 'Revenue') return '#555'; // grey
-      if (name === 'Gross Profit' || name === 'Operating Income' || name === 'Net Income') return '#3cb371'; // green
+      
+      // Adjust for unprofitable companies - make income/profit nodes red instead of green
+      if (name === 'Operating Income' && !isProfitable) return '#c0392b'; // dark red for negative operating income
+      if (name === 'Net Income' && !isNetProfitable) return '#c0392b'; // dark red for negative net income
+      
+      // Gross profit might be positive even when operating income is negative
+      // Calculate if gross profit is positive
+      const isGrossProfitable = data.grossProfit > 0;
+      if (name === 'Gross Profit' && !isGrossProfitable) return '#c0392b'; // dark red for negative
+      if (name === 'Gross Profit' && isGrossProfitable) return '#3cb371'; // green for positive
+      
+      // Normal profitable nodes are green
+      if (name === 'Operating Income' || name === 'Net Income') return '#3cb371'; // green
+      
+      // Cost of Revenue detail nodes
+      if (['COGS','Depreciation & Amortization','Other Cost of Revenue'].includes(name)) return '#c0392b';
       if (name === 'Cost of Revenue' || name === 'Operating Expenses' || name.includes('Expense')) return '#c0392b'; // red
       return '#bbb';
     }
     function linkColor(d) {
+      // Color links from Cost of Revenue red
+      if (d.source.name === 'Cost of Revenue') return '#c0392b';
+      
       // All expense paths are red
       const expenseNames = ['Cost of Revenue', 'Operating Expenses', 'Income Tax Expense'];
       if (d.target.name.includes('Expense') || expenseNames.includes(d.target.name)) {
           return '#c0392b';
       }
-      // Only profit/income flows are green
-      if (['Gross Profit', 'Operating Income', 'Net Income'].includes(d.target.name)) {
+      
+      // Adjust colors based on profitability
+      if (d.target.name === 'Operating Income' && !isProfitable) return '#c0392b';
+      if (d.target.name === 'Net Income' && !isNetProfitable) return '#c0392b';
+      
+      // Check gross profit specifically
+      if (d.target.name === 'Gross Profit') {
+        const isGrossProfitable = data.grossProfit > 0;
+        return isGrossProfitable ? '#3cb371' : '#c0392b';
+      }
+      
+      // Normal profit/income flows are green
+      if (['Operating Income', 'Net Income'].includes(d.target.name)) {
         return '#3cb371';
       }
+      
       return '#bbb'; // Default gray
     }
 
     // Format as $X.XXB, $X.XXM, etc.
+    // Enhanced formatDollars to clearly show negative values with parentheses
     function formatDollars(val) {
-      if (Math.abs(val) >= 1e9) return '$' + (val/1e9).toFixed(2) + 'B';
-      if (Math.abs(val) >= 1e6) return '$' + (val/1e6).toFixed(2) + 'M';
-      if (Math.abs(val) >= 1e3) return '$' + (val/1e3).toFixed(2) + 'K';
-      return '$' + val;
+      // Guards against NaN, undefined, etc.
+      if (val === null || val === undefined || isNaN(val)) {
+        return '$0.00';
+      }
+      
+      // Handle negative values with parentheses for clearer visualization
+      const isNegative = val < 0;
+      const absVal = Math.abs(val);
+      let formatted;
+      
+      if (absVal >= 1e9) {
+        formatted = '$' + (absVal/1e9).toFixed(2) + 'B';
+      } else if (absVal >= 1e6) {
+        formatted = '$' + (absVal/1e6).toFixed(2) + 'M';
+      } else if (absVal >= 1e3) {
+        formatted = '$' + (absVal/1e3).toFixed(2) + 'K';
+      } else {
+        formatted = '$' + absVal.toFixed(2);
+      }
+      
+      return isNegative ? '(' + formatted + ')' : formatted;
+    }
+    
+    // Format node label with profit/loss terminology and include the amount in the label
+    function formatNodeLabel(name, val) {
+      // Guard against bad values
+      if (val === null || val === undefined || isNaN(val)) {
+        return name; // Just return the original name if value is invalid
+      }
+      
+      // Special formatting for income-related nodes when value is negative
+      const isNegative = val < 0;
+      
+      // For income nodes, check also the global flags for more reliable detection
+      if (isNegative) {
+        const absVal = Math.abs(val);
+        const dollarAmount = formatDollars(-absVal); // Ensure negative format
+        
+        // More aggressive checks for unprofitable nodes
+        if (name === 'Operating Income' || name.includes('Operating Income')) 
+          return `Operating Loss ${dollarAmount}`;
+        if (name === 'Net Income' || name.includes('Net Income')) 
+          return `Net Loss ${dollarAmount}`;
+        if (name === 'Gross Profit' || name.includes('Gross Profit')) 
+          return `Gross Loss ${dollarAmount}`;
+      }
+      
+      return name;
     }
 
     // Gradient/modern color helpers
@@ -602,62 +841,21 @@
       return '#555';
     }
 
-    // Draw links
-    chartGroup.append('g').selectAll('path')
-      .data(layoutLinks)
-      .join('path')
-      .attr('d', d3.sankeyLinkHorizontal())
-      .attr('stroke', linkColor)
-      .attr('stroke-width', d => Math.max(1, d.width))
-      .attr('fill', 'none')
-      .attr('opacity', 0.5);
-
-    // Draw nodes
-    chartGroup.append('g').selectAll('rect')
-      .data(nodes)
-      .join('rect')
-      .attr('x', d => d.x0)
-      .attr('y', d => d.y0)
-      .attr('width', d => d.x1 - d.x0)
-      .attr('height', d => Math.max(1, d.y1 - d.y0))
-      .attr('fill', d => nodeColor(d.name));
-
-    // Remove duplicate node labels (by name) and use full names
-    const uniqueNodes = [];
-    const seen = new Set();
-    for (const n of nodes) {
-      if (!seen.has(n.name)) { uniqueNodes.push(n); seen.add(n.name); }
-    }
-    // Use full names for standard nodes
-    const fullLabel = name => {
-      if (segments.map(s => s.segment).includes(name)) return name;
-      if (name === 'Cost of Revenue') return 'Cost of Revenue';
-      if (name === 'Gross Profit') return 'Gross Profit';
-      if (name === 'Operating Expenses') return 'Operating Expenses';
-      if (name === 'Operating Income') return 'Operating Income';
-      if (name === 'Interest Expense') return 'Interest Expense';
-      if (name === 'Income Tax Expense') return 'Income Tax Expense';
-      if (name === 'Net Income') return 'Net Income';
-      if (name === 'Revenue') return 'Revenue';
-      return name;
-    };
-
-    // Remove unconnected/unknown nodes from rendering
-    const connectedNames = new Set();
-    layoutLinks.forEach(l => {
-      connectedNames.add(l.source.name);
-      connectedNames.add(l.target.name);
+    // --- UNIVERSAL NODE LABELING AND FILTERING LOGIC ---
+    // Only render labels for connected nodes regardless of size/value
+    const importantNodesForLabels = nodes.filter(n => {
+      const isConnected = layoutLinks.some(l => l.source === n || l.target === n);
+      const hasName = n.name && n.name.trim().length > 0;
+      return isConnected && hasName;
     });
-    const filteredNodes = uniqueNodes.filter(n => connectedNames.has(n.name));
 
     // --- STANDARDIZED LABEL OFFSETS ---
     const TITLE_OFFSET = 0;
     const VALUE_OFFSET = 16;
     const MARGIN_OFFSET = 32;
+    const GROWTH_OFFSET = 32; // Add offset for Revenue YoY growth line
 
-    // --- NODE LABELS: Enhanced for clarity and matching reference example ---
     function getMargin(name, data) {
-      // Only calculate margin for select nodes
       if (name === 'Gross Profit' && data.revenue > 0) return (data.grossProfit / data.revenue * 100).toFixed(0) + '% margin';
       if (name === 'Operating Income' && data.revenue > 0) return (data.operatingIncome / data.revenue * 100).toFixed(0) + '% margin';
       if (name === 'Net Income' && data.revenue > 0) return (data.netIncome / data.revenue * 100).toFixed(0) + '% margin';
@@ -665,72 +863,207 @@
       if (name === 'Operating Expenses' && data.revenue > 0) return (data.operatingExpenses / data.revenue * 100).toFixed(0) + '% of revenue';
       return '';
     }
-    chartGroup.selectAll('.node-label').remove();
-    chartGroup.selectAll('.node-label')
-      .data(nodes)
-      .enter()
-      .append('text')
-      .attr('class', 'node-label')
-      .attr('x', d => (d.x0 + d.x1) / 2)
-      .attr('y', d => (d.y0 + d.y1) / 2)
-      .attr('text-anchor', 'middle')
-      .attr('alignment-baseline', 'middle')
-      .attr('font-size', d => Math.max(10, Math.min(16, (d.y1 - d.y0) * 0.7)))
-      .attr('fill', d => ['#c0392b', '#555'].includes(nodeColor(d.name)) ? '#fff' : '#222')
-      .text(d => d.name.length > 18 ? d.name.slice(0, 16) + '…' : d.name);
 
+    chartGroup.selectAll('.node-label').remove();
     labelGroup = chartGroup.append('g');
-    filteredNodes.forEach(d => {
+    importantNodesForLabels.forEach(d => {
       const isSeg = segments.map(s => s.segment).includes(d.name);
       const cx = isSeg ? d.x0 - 10 : d.x0 + (d.x1 - d.x0) / 2;
       const anchor = isSeg ? 'end' : 'middle';
       const marginText = getMargin(d.name, data);
-      // Special: Cost of Revenue & Operating Expenses label below bar, others above
       const belowBar = (d.name === 'Cost of Revenue' || d.name === 'Operating Expenses');
       let yBase;
       if (!isSeg) {
         yBase = belowBar ? d.y1 + 8 : d.y0 - 22;
-        // Detect if node is at the right edge
-        const rightEdge = d.x1 > chartWidth - 40; // 40px threshold
+        const isCostDetailNode = ['COGS', 'Depreciation & Amortization', 'Other Cost of Revenue'].includes(d.name);
+        const rightEdge = isCostDetailNode || d.x1 > chartWidth - 40;
         let labelX = cx;
         let labelAnchor = anchor;
         if (rightEdge) {
-          labelX = d.x1 + 10; // 10px to the right of node
+          labelX = d.x1 + 10;
           labelAnchor = 'start';
         }
-        const rightEdgeYOffset = rightEdge ? 10 : 0;
-        // Move top-end node labels higher if at the top of the chart
-        const isTopNode = yBase < 100 || ['Gross Profit', 'Operating Income', 'Net Income'].includes(d.name);
-        const topEdgeYOffset = isTopNode ? -12 : 0;
+        const rightEdgeYOffset = rightEdge ? 20 : 0; // Increase Y-offset to align right-edge labels closer to rects
+        let topEdgeYOffset = 0;
+        if (d.name === 'Revenue') {
+          topEdgeYOffset = -35;
+        } else if (yBase < 100 || ['Gross Profit', 'Operating Income', 'Net Income'].includes(d.name)) {
+          topEdgeYOffset = -25;
+        }
+        // Collapsed right-edge labels into one line
+        if (rightEdge) {
+          const displayName = d.name.replace(/\s*expenses?$/i, '');
+          const midY = (d.y0 + d.y1) / 2;
+          // Ensure negative values are displayed with appropriate styling
+          // Directly check the global profit status rather than just the local value
+          let isNegative = false;
+          let valueToUse = d.value;
+          
+          // Set loss status based on overall company profitability
+          if (displayName === 'Operating Income' || displayName.includes('Operating')) {
+              isNegative = !isProfitable;
+              valueToUse = -Math.abs(data.operatingIncome); // Force negative for correct display
+          }
+          if (displayName === 'Operating Loss') {
+              isNegative = true;
+              valueToUse = -Math.abs(data.operatingIncome); // Force negative for correct display
+              d.value = Math.abs(data.operatingIncome); // Set for value label
+          }
+          if (displayName === 'Net Income' || displayName.includes('Net')) {
+              isNegative = !isNetProfitable;
+              valueToUse = -Math.abs(data.netIncome); // Force negative for correct display
+          }
+          if (displayName === 'Net Loss') {
+              isNegative = true;
+              valueToUse = -Math.abs(data.netIncome); // Force negative for correct display
+              d.value = Math.abs(data.netIncome); // Set for value label
+          }
+          // Check gross profit terminology too
+          if (displayName === 'Gross Profit' || displayName.includes('Gross')) {
+              isNegative = !isGrossProfitable;
+              valueToUse = -Math.abs(data.grossProfit); // Force negative for correct display
+          }
+          if (displayName === 'Gross Loss') {
+              isNegative = true;
+              valueToUse = -Math.abs(data.grossProfit); // Force negative for correct display
+              d.value = Math.abs(data.grossProfit); // Set for value label
+          }
+          
+          // For negative values, display only the label with loss amount already included
+          const displayLabel = isNegative ? formatNodeLabel(displayName, valueToUse) : displayName;
+          
+          // Value for display  
+          const dollarValue = isNegative ? 
+                Math.abs(valueToUse || d.value) : // Use absolute value for the display 
+                d.value;
+
+          // For right-edge nodes, we need to add value displays for Loss nodes
+          // Add the node title first
+          labelGroup.append('text')
+            .attr('class', 'nodelabel-right')
+            .attr('x', labelX)
+            .attr('y', midY - 10) // Shift up to make room for value below
+            .attr('text-anchor', labelAnchor)
+            .attr('alignment-baseline', 'middle')
+            .text(displayLabel) // Just show the label (Net Loss, etc.)
+            .style('font-size', '15px')
+            .style('font-weight', 'bold')
+            .style('fill', isNegative ? '#c0392b' : nodeSolidColor(d.name)) // Dark red for negative
+            .style('paint-order', 'stroke')
+            .style('stroke', 'white')
+            .style('stroke-width', 6)
+            .style('stroke-linejoin', 'round')
+            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+            
+          // Then add the dollar amount below
+          labelGroup.append('text')
+            .attr('class', 'nodelabel-right-value')
+            .attr('x', labelX)
+            .attr('y', midY + 10) // Position below the title
+            .attr('text-anchor', labelAnchor)
+            .attr('alignment-baseline', 'middle')
+            .text(formatDollars(isNegative ? -dollarValue : dollarValue)) // Show formatted value
+            .style('font-size', '14px')
+            .style('font-weight', 'bold')
+            .style('fill', isNegative ? '#e74c3c' : nodeSolidColor(d.name)) // Bright red for negative dollar amounts
+            .style('paint-order', 'stroke')
+            .style('stroke', 'white')
+            .style('stroke-width', 4)
+            .style('stroke-linejoin', 'round')
+            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))'); 
+          return;
+        }
+            // Use formatNodeLabel to potentially change terminology (e.g., income → loss)
+        // Always check the global profit status first for accurate labeling
+        let isNegative = false;
+        let forceAmount = null;
+        
+        // Force loss labels based on the company's overall profitability status
+        if (d.name === 'Operating Income' || d.name.includes('Operating Income')) {
+            isNegative = !isProfitable;
+            forceAmount = Math.abs(data.operatingIncome);
+        }
+        if (d.name === 'Operating Loss') {
+            // For Operating Loss nodes, always get the right amount
+            forceAmount = Math.abs(data.operatingIncome);
+            d.value = forceAmount; // Set the actual value for use in the value label
+        }
+        if (d.name === 'Net Income' || d.name.includes('Net Income')) {
+            isNegative = !isNetProfitable;
+            forceAmount = Math.abs(data.netIncome);
+        }
+        if (d.name === 'Net Loss') {
+            // For Net Loss nodes, always get the right amount
+            forceAmount = Math.abs(data.netIncome);
+            d.value = forceAmount; // Set the actual value for use in the value label
+        }
+        if (d.name === 'Gross Profit' || d.name.includes('Gross Profit')) {
+            isNegative = !isGrossProfitable;
+            forceAmount = Math.abs(data.grossProfit);
+        }
+        if (d.name === 'Gross Loss') {
+            // For Gross Loss nodes, always get the right amount
+            forceAmount = Math.abs(data.grossProfit);
+            d.value = forceAmount; // Set the actual value for use in the value label
+        }
+        
+        // If we've detected a loss situation, use the actual values from data
+        const valueToUse = isNegative && forceAmount ? -forceAmount : d.value;
+        const displayLabel = formatNodeLabel(d.name, valueToUse);
+        
         labelGroup.append('text')
           .attr('class', 'nodelabel')
           .attr('x', labelX)
           .attr('y', yBase + TITLE_OFFSET + rightEdgeYOffset + topEdgeYOffset)
           .attr('text-anchor', labelAnchor)
           .attr('alignment-baseline', 'hanging')
-          .text(fullLabel(d.name))
+          .text(displayLabel) // Use the potentially modified label
           .style('font-size', '15px')
           .style('font-weight', 'bold')
-          .style('fill', nodeSolidColor(d.name))
+          .style('fill', isNegative ? '#c0392b' : nodeSolidColor(d.name)) // Red for negative
           .style('paint-order', 'stroke')
           .style('stroke', 'white')
           .style('stroke-width', 6)
           .style('stroke-linejoin', 'round')
-          .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+          .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))'); 
         if (typeof d.value === 'number' && !isNaN(d.value)) {
+          // Consistent negative value styling for dollar amounts
+          const isNegative = d.value < 0;
+          
+          // Always show the dollar amount for all nodes, including Loss nodes
+          {
+            labelGroup.append('text')
+              .attr('class', 'nodelabel-value')
+              .attr('x', labelX)
+              .attr('y', yBase + VALUE_OFFSET + rightEdgeYOffset + topEdgeYOffset)
+              .attr('text-anchor', labelAnchor)
+              .attr('alignment-baseline', 'hanging')
+              .text(formatDollars(d.value))
+              .style('font-size', '15px')
+              .style('font-weight', 'bold')
+              .style('fill', isNegative ? '#e74c3c' : nodeSolidColor(d.name)) // Bright red for negative
+              .style('paint-order', 'stroke')
+              .style('stroke', 'white')
+              .style('stroke-width', 5)
+              .style('stroke-linejoin', 'round')
+              .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+          }
+        }
+        if (d.name === 'Revenue' && growthData[growthKeyMap['Revenue']] != null) {
+          const yoy = growthData[growthKeyMap['Revenue']];
           labelGroup.append('text')
-            .attr('class', 'nodelabel-value')
+            .attr('class', 'nodelabel-growth')
             .attr('x', labelX)
-            .attr('y', yBase + VALUE_OFFSET + rightEdgeYOffset + topEdgeYOffset)
+            .attr('y', yBase + GROWTH_OFFSET + rightEdgeYOffset + topEdgeYOffset)
             .attr('text-anchor', labelAnchor)
             .attr('alignment-baseline', 'hanging')
-            .text(formatDollars(d.value))
-            .style('font-size', '15px')
+            .text((yoy > 0 ? '+' : '') + (yoy * 100).toFixed(1) + '% YoY')
+            .style('font-size', '13px')
             .style('font-weight', 'bold')
             .style('fill', nodeSolidColor(d.name))
             .style('paint-order', 'stroke')
             .style('stroke', 'white')
-            .style('stroke-width', 5)
+            .style('stroke-width', 4)
             .style('stroke-linejoin', 'round')
             .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
         }
@@ -752,41 +1085,97 @@
             .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
         }
       } else {
-        // Segmentation node: label left, value below
+        // Collapsed left-edge labels into one line (Title - Dollar Amount)
         labelGroup.append('text')
-          .attr('class', 'nodelabel')
+          .attr('class', 'nodelabel-left')
           .attr('x', cx)
-          .attr('y', (d.y0 + d.y1) / 2 + TITLE_OFFSET)
+          .attr('y', (d.y0 + d.y1) / 2)
           .attr('text-anchor', anchor)
           .attr('alignment-baseline', 'middle')
-          .text(fullLabel(d.name))
+          .text(shortenSegmentName(d.name) + ' - ' + formatDollars(d.value))
           .style('font-size', '14px')
           .style('font-weight', 'bold')
-          .style('fill', nodeSolidColor(d.name))
+          .style('fill', '#999') // Changed from nodeSolidColor(d.name) to #999
           .style('paint-order', 'stroke')
           .style('stroke', 'white')
           .style('stroke-width', 6)
           .style('stroke-linejoin', 'round')
           .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
-        if (typeof d.value === 'number' && !isNaN(d.value)) {
-          labelGroup.append('text')
-            .attr('class', 'nodelabel-value')
-            .attr('x', cx)
-            .attr('y', (d.y0 + d.y1) / 2 + VALUE_OFFSET)
-            .attr('text-anchor', anchor)
-            .attr('alignment-baseline', 'middle')
-            .text(formatDollars(d.value))
-            .style('font-size', '13px')
-            .style('font-weight', 'normal')
-            .style('fill', nodeSolidColor(d.name))
-            .style('paint-order', 'stroke')
-            .style('stroke', 'white')
-            .style('stroke-width', 5)
-            .style('stroke-linejoin', 'round')
-            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
-        }
+        return;
       }
     });
+    // Remove stroke and filters, then apply hierarchical text styling
+    labelGroup.selectAll('text')
+      .style('stroke', 'none')
+      .style('stroke-width', 0)
+      .style('filter', 'none');
+    // Primary labels (node names)
+    labelGroup.selectAll('.nodelabel, .nodelabel-right, .nodelabel-left')
+      .style('fill', '#eceff4')
+      .style('font-size', '14px')
+      .style('font-weight', '600')
+      .style('opacity', 1);
+    // Values
+    labelGroup.selectAll('.nodelabel-value')
+      .style('fill', '#bbb')
+      .style('font-size', '12px')
+      .style('font-weight', '400')
+      .style('opacity', 0.9);
+    // Growth % (less prominent)
+    labelGroup.selectAll('.nodelabel-growth')
+      .style('fill', '#999')
+      .style('font-size', '12px')
+      .style('font-style', 'italic')
+      .style('opacity', 0.7);
+    // Margin text (least prominent)
+    labelGroup.selectAll('.nodelabel-margin')
+      .style('fill', '#777')
+      .style('font-size', '12px')
+      .style('font-weight', '400')
+      .style('opacity', 0.7);
+
+    // --- UNIVERSAL NODE RENDERING FILTER ---
+    // Render all rectangles for connected nodes regardless of size/value
+    const importantNodes = nodes.filter(n => {
+      const isConnected = layoutLinks.some(l => l.source === n || l.target === n);
+      const hasName = n.name && n.name.trim().length > 0;
+      return isConnected && hasName;
+    });
+
+    chartGroup.append('g').selectAll('rect')
+      .data(importantNodes)
+      .join('rect')
+      .attr('x', d => d.x0)
+      .attr('y', d => d.y0)
+      .attr('width', d => d.x1 - d.x0)
+      .attr('height', d => Math.max(1, d.y1 - d.y0))
+      .attr('fill', d => nodeColor(d.name));
+
+    // Draw links
+    chartGroup.selectAll('path.sankey-link')
+      .data(layoutLinks)
+      .join('path')
+      .attr('class', 'sankey-link')
+      .attr('d', d => {
+        const x0 = d.source.x1, x1 = d.target.x0;
+        const y0a = d._sy0, y0b = d._sy1;
+        const y1a = d._ty0, y1b = d._ty1;
+        // Use cubic Bezier for smoothness, but endpoints always flush
+        const curvature = 0.5;
+        const xi = d3.interpolateNumber(x0, x1);
+        const x2 = xi(curvature), x3 = xi(1 - curvature);
+        return [
+          'M', x0, y0a,
+          'C', x2, y0a, x3, y1a, x1, y1a,
+          'L', x1, y1b,
+          'C', x3, y1b, x2, y0b, x0, y0b,
+          'Z'
+        ].join(' ');
+      })
+      .attr('fill', d => linkColor(d))
+      .attr('opacity', 0.5)
+      .attr('stroke', '#bbb')
+      .attr('stroke-width', 0); // No outline, just filled band
 
     // Helper to compute the center of a curved Sankey link
     function getLinkRibbonCenter(d) {
@@ -798,30 +1187,82 @@
     }
 
     // --- Add YoY Growth Labels ---
-    chartGroup.selectAll('text.yoy-label').data(layoutLinks.filter(link => {
-      if (!link || !link.source || !link.target) return false;
-      if (segments && segments.length && link.target.name === 'Revenue') {
-        const seg = segments.find(s => s.segment === link.source.name);
-        return seg && typeof seg.yoy === 'number';
+    // For segment-to-Revenue links, show only one YoY label per segment, centered in the segment node, vertically spaced
+    if (segments && segments.length) {
+      // Calculate vertical spacing and font size for dense segments
+      const segNodes = layoutLinks.filter(l => l.target === nodes.find(n => n.name === 'Revenue') && l.source && l.source.x0 < nodes.find(n => n.name === 'Revenue').x0);
+      const segmentNodesOrdered = segNodes.map(l => l.source).sort((a, b) => a.y0 - b.y0);
+      const totalSegs = segmentNodesOrdered.length;
+      const nodeHeight = nodes.find(n => n.name === 'Revenue').y1 - nodes.find(n => n.name === 'Revenue').y0;
+      // Minimum spacing and font size
+      let minSpacing = 18;
+      const fontSize = 10; // reduced size for segment YoY labels
+      if (totalSegs > 10) {
+        minSpacing = Math.max(12, nodeHeight / totalSegs);
       }
-      return typeof growthKeyMap !== 'undefined' && growthKeyMap[link.target.name] && growthData && growthData[growthKeyMap[link.target.name]] != null;
-    }))
-      .join('text')
-      .attr('class', 'yoy-label')
-      .attr('x', d => d && d.source && d.target ? getLinkRibbonCenter(d)[0] : 0)
-      .attr('y', d => d && d.source && d.target ? getLinkRibbonCenter(d)[1] : 0)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', '14px')
-      .attr('fill', '#222')
-      .attr('font-weight', 700)
-      .text(d => {
-        if (!d || !d.source || !d.target) return '';
-        if (segments && segments.length && d.target.name === 'Revenue') {
-          const seg = segments.find(s => s.segment === d.source.name);
+      // Prepare label positions for collision avoidance
+      const labelPos = [];
+      chartGroup.selectAll('text.yoy-label-segment')
+        .data(segmentNodesOrdered)
+        .join('text')
+        .attr('class', 'yoy-label yoy-label-segment')
+        .attr('x', d => d.x1 + 8)
+        .attr('y', (d, i) => {
+          const base = (d.y0 + d.y1) / 2;
+          labelPos.push({y: base, height: fontSize, setY: y => d._labelY = y});
+          return base;
+        })
+        .attr('text-anchor', 'start')
+        .attr('font-size', fontSize + 'px')
+        .attr('fill', '#222')
+        .attr('font-weight', 700)
+        .style('cursor', 'pointer')
+        .text(d => {
+          const seg = segments.find(s => s.segment === d.name);
           if (seg && typeof seg.yoy === 'number') {
             return (seg.yoy > 0 ? '+' : '') + seg.yoy.toFixed(1) + '% YoY';
           }
+          return '';
+        })
+        .append('title')
+        .text(d => d.name);
+      // Apply collision avoidance after initial render
+      function avoidLabelOverlap(labels, minSpacing = 16) {
+        // labels: array of {y: initialY, height, setY: fn(newY)}
+        labels.sort((a, b) => a.y - b.y);
+        for (let i = 1; i < labels.length; ++i) {
+          const prev = labels[i-1];
+          const curr = labels[i];
+          if (curr.y - prev.y < minSpacing) {
+            curr.y = prev.y + minSpacing;
+            curr.setY(curr.y);
+          }
         }
+      }
+      avoidLabelOverlap(labelPos, minSpacing);
+      chartGroup.selectAll('text.yoy-label-segment')
+        .attr('y', (d, i) => d._labelY || (d.y0 + d.y1) / 2);
+    }
+    // For all other links, show YoY label at link center, but only one per link
+    chartGroup.selectAll('text.yoy-label-general')
+      .data(layoutLinks.filter(link => {
+        if (!link || !link.source || !link.target) return false;
+        // Exclude segment-to-revenue links (handled above)
+        if (segments && segments.length && link.target.name === 'Revenue' && segments.some(s => s.segment === link.source.name)) {
+          return false;
+        }
+        return typeof growthKeyMap !== 'undefined' && growthKeyMap[link.target.name] && growthData && growthData[growthKeyMap[link.target.name]] != null;
+      }))
+      .join('text')
+      .attr('class', 'yoy-label yoy-label-general')
+      .attr('x', d => d && d.source && d.target ? getLinkRibbonCenter(d)[0] : 0)
+      .attr('y', d => d && d.source && d.target ? getLinkRibbonCenter(d)[1] : 0)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '12px') // Changed from 14px to 12px
+      .attr('fill', '#999') // Changed from #222 to #999
+      .attr('font-weight', 400) // Changed from 700 to 400
+      .style('opacity', 0.6) // Added opacity
+      .text(d => {
         const key = growthKeyMap[d.target.name];
         let val = growthData[key];
         if (val == null || isNaN(val)) return '';
@@ -841,9 +1282,10 @@
       .attr('x', d => d && d.source && d.target ? getLinkRibbonCenter(d)[0] : 0)
       .attr('y', d => d && d.source && d.target ? getLinkRibbonCenter(d)[1] : 0)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '14px')
-      .attr('fill', '#222')
-      .attr('font-weight', 700)
+      .attr('font-size', '12px') // Changed from 14px to 12px
+      .attr('fill', '#999') // Changed from #222 to #999
+      .attr('font-weight', 400) // Changed from 700 to 400
+      .style('opacity', 0.6) // Added opacity
       .text(d => {
         if (!d || !d.source || !d.target) return '';
         if (segments && segments.length && d.target.name === 'Revenue') {
@@ -858,6 +1300,12 @@
         if (Math.abs(val) < 1) val = val * 100;
         return (val > 0 ? '+' : '') + val.toFixed(1) + '% YoY';
       });
+
+    // If no segments, do not render segment nodes/links or segment YoY labels
+    if (!segments || !segments.length) {
+      // Remove any segment-specific YoY labels
+      chartGroup.selectAll('text.yoy-label-segment').remove();
+    }
 
     // --- Tooltip ---
     const tooltip = d3.select('body').append('div')

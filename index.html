@@ -4,22 +4,129 @@
   <meta charset="utf-8" />
   <title>Income Statement Sankey Chart</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    input, button { font-size: 1em; padding: 0.5em; }
-    #visualization { display: flex; align-items: flex-start; width: 100%; }
-    #d3-chart { flex: 1 1 100%; height: 600px; min-width: 700px; max-width: 98vw; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      font-family: 'Inter', sans-serif;
+      color: #eceff4;
+    }
+    .header-center {
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 30px;
+      margin-bottom: 8px;
+    }
+    .headline-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      margin-bottom: 0.5em;
+    }
+    .headline-mascot {
+      height: 56px;
+      width: auto;
+      margin-right: 4px;
+      border-radius: 12px;
+      background: #222c;
+      box-shadow: 0 2px 10px #0004;
+    }
+    .headline-logo {
+      height: 48px;
+      width: auto;
+      margin-left: 4px;
+      border-radius: 8px;
+      background: #222c;
+      box-shadow: 0 2px 10px #0004;
+    }
+    .header-center h1 {
+      color: #eceff4;
+      font-weight: 600;
+      font-size: 2.2em;
+      text-align: center;
+      margin-bottom: 0;
+      letter-spacing: 0.02em;
+      padding: 0 10px;
+    }
+    .input-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    #visualization {
+      display: flex;
+      align-items: flex-start;
+      background: #1e1e1e;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      margin: 20px;
+    }
+    #d3-chart {
+      flex: 1 1 100%;
+      height: 600px;
+      min-width: 700px;
+      max-width: 98vw;
+      background: #1e1e1e;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .chart-actions {
+      display: flex;
+      flex-direction: row;
+      justify-content: flex-end;
+      align-items: center;
+      width: 98vw;
+      max-width: 1200px;
+      margin: 0 auto 0 auto;
+      margin-bottom: 24px;
+      gap: 8px;
+    }
+    input, button {
+      background: #2c3e50;
+      border: 1px solid #34495e;
+      border-radius: 4px;
+      color: #eceff4;
+      padding: 8px 12px;
+      font-size: 1em;
+      margin: 0 4px 0 0;
+    }
+    input:focus, button:hover {
+      border-color: #4aa;
+      outline: none;
+    }
+    svg text {
+      fill: #eceff4;
+      font-family: 'Inter', sans-serif;
+    }
   </style>
 </head>
 <body>
-  <h1>Stock Income Statement Sankey Chart</h1>
-  <input type="text" id="ticker" placeholder="Enter stock ticker" />
-  <button id="submit">Generate Chart</button>
-  <button id="copy-screenshot" style="font-size:0.9em;padding:0.3em 0.7em;margin-right:8px;">Copy Chart</button>
-  <button id="download-chart" style="font-size:0.9em;padding:0.3em 0.7em;">Download Chart</button>
+  <div class="header-center">
+    <div class="headline-row">
+      <img src="/ChatGPT Image May 8, 2025, 06_12_40 PM.png" alt="Owl Mascot" class="headline-mascot" />
+      <h1>First Look Stocks</h1>
+      <img src="/firstlookstocks-watermark.png" alt="First Look Stocks Logo" class="headline-logo" />
+    </div>
+    <div class="input-row">
+      <input type="text" id="ticker" list="ticker-list" placeholder="Enter stock ticker or company name" autocomplete="off" />
+      <datalist id="ticker-list"></datalist>
+      <button id="submit">Take a first look</button>
+    </div>
+  </div>
   <div id="d3-chart-scroll-anchor"></div>
   <div style="height: 20px;"></div>
   <div id="visualization">
     <div id="d3-chart"></div>
+  </div>
+  <div class="chart-actions">
+    <button id="copy-screenshot" style="font-size:0.9em;padding:0.3em 0.7em;margin-right:8px;">Copy Chart</button>
+    <button id="download-chart" style="font-size:0.9em;padding:0.3em 0.7em;">Download Chart</button>
   </div>
   <div style="height: 60px;"></div>
   <div id="screenshot-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
