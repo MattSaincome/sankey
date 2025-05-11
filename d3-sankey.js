@@ -57,31 +57,80 @@ window.renderD3Sankey = async function(data, segments, ticker, detailedExpenses,
     console.log(`DEBUG: Values - Gross=${data.grossProfit}, Operating=${data.operatingIncome}, Net=${data.netIncome}`);
     d3Div.innerHTML = '';
     console.log('DEBUG renderD3 data:', data);
-    // AI-powered relabeler for revenue segments
-    function shortenSegmentName(name) {
-      const overrides = [
-        {regex: /cloud/i, label: 'Cloud'},
-        {regex: /office/i, label: 'Office'},
-        {regex: /linkedin/i, label: 'LinkedIn'}
-      ];
-      for (const {regex,label} of overrides) if (regex.test(name)) return label;
-      const generic = ['corporation','corporations','inc','inc.','co','company','ltd','plc','systems','system','services','service','products','product','solutions','solution','division','and','&'];
-      let parts = name.split(/\s+/).filter(w => !generic.includes(w.toLowerCase()));
-      if (parts.length === 0) parts = name.split(/\s+/);
-      if (parts.length > 2) {
-        const last = parts[parts.length-1];
-        return last.charAt(0).toUpperCase()+last.slice(1).toLowerCase();
+    // Improved relabeler for revenue segments to ensure descriptive, meaningful labels
+function shortenSegmentName(name, full = false) {
+  // Show full name if requested
+  if (full) return name;
+  const overrides = [
+    {regex: /cloud/i, label: 'Cloud'},
+    {regex: /office/i, label: 'Office'},
+    {regex: /linkedin/i, label: 'LinkedIn'}
+  ];
+  for (const {regex,label} of overrides) if (regex.test(name)) return label;
+  const generic = ['corporation','corporations','inc','inc.','co','company','ltd','plc','systems','system','services','service','products','product','solutions','solution','division','and','&'];
+  let parts = name.split(/\s+/).filter(w => !generic.includes(w.toLowerCase()));
+  if (parts.length === 0) parts = name.split(/\s+/);
+  if (parts.length > 2) {
+    return parts.join(' ');
+  }
+  return parts.map(w => w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
+}
+
+// Universal label formatter for segment/other nodes
+function formatSegmentLabel(segmentName, value, isOther = false) {
+  if (isOther) {
+    return `Other Segments – ${formatDollars(value)}`;
+  }
+  // Use full segment name for clarity
+  return `${segmentName} – ${formatDollars(value)}`;
+}
+    // Dynamic margins: left based on ACTUAL label width after splitting, so chart is as big as possible
+    // Helper to split segment name for margin calculation (same as label rendering logic)
+    function splitSegmentNameForLines(name) {
+      let clean = String(name).trim();
+      if (clean.length < 16) return [clean];
+      let hyphenIdx = clean.indexOf('-');
+      if (hyphenIdx > 3 && hyphenIdx < clean.length - 3) {
+        return [clean.slice(0, hyphenIdx + 1), clean.slice(hyphenIdx + 1).trim()];
       }
-      return parts.map(w => w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
+      let mid = Math.floor(clean.length / 2);
+      let best = clean.length;
+      let splitAt = -1;
+      for (let i = 3; i < clean.length - 3; ++i) {
+        if (clean[i] === ' ') {
+          let dist = Math.abs(i - mid);
+          if (dist < best) {
+            best = dist;
+            splitAt = i;
+          }
+        }
+      }
+      if (splitAt > 0) {
+        return [clean.slice(0, splitAt), clean.slice(splitAt + 1)];
+      }
+      return [clean.slice(0, mid), clean.slice(mid)];
     }
-    // Dynamic margins: left based on label length, static right to fit labels
-    const segLabels = segments.map(s => shortenSegmentName(s.segment) + ' - ' + formatDollars(s.revenue || 0));
-    const maxChars = segLabels.length ? Math.max(...segLabels.map(l => l.length)) : 4;
-    // Increased padding from 20 to 30 and char width from 7 to 7.5
-    const leftMargin = Math.max(50, maxChars * 7.5 + 30);
-    // Increased right margin from 200 to 220
-    const rightMargin = 220;
-    const margin = { left: leftMargin, right: rightMargin, top: 40, bottom: 80 };
+    // Compute the max width of any split segment label (across up to two lines)
+    let tempText = document.createElement('span');
+    tempText.style.visibility = 'hidden';
+    tempText.style.position = 'absolute';
+    tempText.style.fontSize = '13px';
+    tempText.style.fontWeight = 'bold';
+    document.body.appendChild(tempText);
+    let maxLabelWidth = 0;
+    segments.forEach(s => {
+      const lines = splitSegmentNameForLines(shortenSegmentName(s.segment));
+      lines.forEach(line => {
+        tempText.textContent = line;
+        maxLabelWidth = Math.max(maxLabelWidth, tempText.offsetWidth);
+      });
+    });
+    document.body.removeChild(tempText);
+    // Add buffer for value line and a little extra for stroke
+    const leftMargin = Math.max(36, maxLabelWidth + 18);
+
+    // Substantially increased margins on both sides to prevent any label cropping
+    const margin = { top: 50, right: 180, bottom: 30, left: 180 };
     // Use container width so chart always fits display area
     const width = d3Div.clientWidth;
     const height = 600;
@@ -147,23 +196,20 @@ window.renderD3Sankey = async function(data, segments, ticker, detailedExpenses,
     
     // Helper to add a link with proper handling of negative values
     function addLink(source, target, value) {
-      // For sankey visualization, we need positive values
-      // But we'll track if it was originally negative
-      let absValue = Math.abs(value || 0);
-      if (!absValue) return; // Skip zero values
-      
-      // Only include links with meaningful values
-      if (absValue < 1e5) return; // Skip tiny flows less than $100k
-      
-      const sourceIdx = nodeMap[source];
-      const targetIdx = nodeMap[target];
-      links.push({ 
-        source: sourceIdx, 
-        target: targetIdx, 
-        value: absValue,
-        isNegative: value < 0 // Track if original value was negative
-      });
-    }
+  // For sankey visualization, we need positive values
+  // But we'll track if it was originally negative
+  let absValue = Math.abs(value || 0);
+  if (!absValue) return; // Skip zero values only (do not filter by threshold)
+  const sourceIdx = nodeMap[source];
+  const targetIdx = nodeMap[target];
+  links.push({ 
+    source: sourceIdx, 
+    target: targetIdx, 
+    value: absValue,
+    isNegative: value < 0 // Track if original value was negative
+  });
+}
+
     
     // --- Product Segments: Explicit Order ---
     if (segments.length > 0) {
@@ -525,47 +571,78 @@ window.renderD3Sankey = async function(data, segments, ticker, detailedExpenses,
 
     // --- UNIVERSAL PIXEL-PERFECT NODE AND LINK ALIGNMENT ---
     function assignLinkSlots(nodes, links) {
-      const MIN_NODE_HEIGHT = 1; // px, only for visibility
-      // First, compute required node height for each node
-      nodes.forEach(node => {
-        const outgoing = links.filter(l => l.source === node);
-        const incoming = links.filter(l => l.target === node);
-        const outSum = outgoing.reduce((sum, l) => sum + l.value, 0);
-        const inSum = incoming.reduce((sum, l) => sum + l.value, 0);
-        const nodeHeight = Math.max(outSum, inSum, MIN_NODE_HEIGHT);
-        // Set node height in pixels, using same scale as before
-        const pxPerValue = (node.y1 - node.y0) / Math.max(node.value || 1, nodeHeight);
-        node._trueHeight = nodeHeight * pxPerValue;
-        node.y1 = node.y0 + node._trueHeight;
-      });
-      // Now assign link slots pixel-perfectly
-      nodes.forEach(node => {
-        const outgoing = links.filter(l => l.source === node);
-        let y = node.y0;
-        outgoing.sort((a, b) => (a.target.y0 || 0) - (b.target.y0 || 0));
-        const pxPerValue = node._trueHeight / Math.max(1, outgoing.reduce((sum, l) => sum + l.value, 0));
-        outgoing.forEach(link => {
-          let h = link.value * pxPerValue;
-          link._sy0 = y;
-          link._sy1 = y + h;
-          link.y0 = y + h / 2;
-          y += h;
-        });
-      });
-      nodes.forEach(node => {
-        const incoming = links.filter(l => l.target === node);
-        let y = node.y0;
-        incoming.sort((a, b) => (a.source.y0 || 0) - (b.source.y0 || 0));
-        const pxPerValue = node._trueHeight / Math.max(1, incoming.reduce((sum, l) => sum + l.value, 0));
-        incoming.forEach(link => {
-          let h = link.value * pxPerValue;
-          link._ty0 = y;
-          link._ty1 = y + h;
-          link.y1 = y + h / 2;
-          y += h;
-        });
-      });
-    }
+  // --- UNIVERSAL GLOBAL SCALING FOR ALL LINKS/NODES ---
+  // Find the maximum sum of incoming/outgoing for any node (the largest flow in the chart)
+  const MIN_NODE_HEIGHT = 0; // No minimum node height, allow true proportionality
+  const chartHeight = nodes.length > 0 ? Math.max(...nodes.map(n => (n.y1 || 0) - (n.y0 || 0))) : 400;
+  // Compute the largest node value sum (to set the scale)
+  const maxNodeSum = nodes.length > 0 ? Math.max(...nodes.map(node => {
+    const outgoing = links.filter(l => l.source === node);
+    const incoming = links.filter(l => l.target === node);
+    const outSum = outgoing.reduce((sum, l) => sum + l.value, 0);
+    const inSum = incoming.reduce((sum, l) => sum + l.value, 0);
+    return Math.max(outSum, inSum, node.value || 0);
+  })) : 1;
+  // Use 90% of chart height for flows
+  const usableHeight = chartHeight * 0.9;
+  const pxPerValue = maxNodeSum > 0 ? usableHeight / maxNodeSum : 1;
+  // Assign node heights
+  nodes.forEach(node => {
+    const outgoing = links.filter(l => l.source === node);
+    const incoming = links.filter(l => l.target === node);
+    const outSum = outgoing.reduce((sum, l) => sum + l.value, 0);
+    const inSum = incoming.reduce((sum, l) => sum + l.value, 0);
+    const nodeHeight = Math.max(outSum, inSum, MIN_NODE_HEIGHT);
+    node._trueHeight = nodeHeight * pxPerValue;
+    node.y1 = node.y0 + node._trueHeight;
+  });
+
+  // --- ENFORCE MINIMUM VERTICAL MARGIN FOR RIGHTMOST COLUMN ---
+  const MIN_NODE_MARGIN = 18; // px
+  // Find rightmost x0
+  const rightmostX = Math.max(...nodes.map(n => n.x0));
+  const rightNodes = nodes.filter(n => n.x0 === rightmostX).sort((a, b) => a.y0 - b.y0);
+  // Calculate total height with margins
+  let totalHeight = rightNodes.reduce((sum, n) => sum + n._trueHeight, 0) + (rightNodes.length - 1) * MIN_NODE_MARGIN;
+  // If totalHeight > chartHeight, proportionally shrink node heights (except maybe largest)
+  let y = 0;
+  rightNodes.forEach(node => {
+    node.y0 = y;
+    node.y1 = y + node._trueHeight;
+    y = node.y1 + MIN_NODE_MARGIN;
+  });
+
+  // Assign link slots using global pxPerValue
+  nodes.forEach(node => {
+    const outgoing = links.filter(l => l.source === node);
+    let y = node.y0;
+    outgoing.sort((a, b) => (a.target.y0 || 0) - (b.target.y0 || 0));
+    outgoing.forEach(link => {
+      let h = link.value * pxPerValue;
+      link._sy0 = y;
+      link._sy1 = y + h;
+      link.y0 = y + h / 2;
+      // Debug log for link width
+      if (window.DEBUG_SAR_SANK) {
+        console.log(`[Sankey] Link ${link.source.name} → ${link.target.name} value=${link.value}, pxWidth=${h}`);
+      }
+      y += h;
+    });
+  });
+  nodes.forEach(node => {
+    const incoming = links.filter(l => l.target === node);
+    let y = node.y0;
+    incoming.sort((a, b) => (a.source.y0 || 0) - (b.source.y0 || 0));
+    incoming.forEach(link => {
+      let h = link.value * pxPerValue;
+      link._ty0 = y;
+      link._ty1 = y + h;
+      link.y1 = y + h / 2;
+      y += h;
+    });
+  });
+}
+
 
     assignLinkSlots(nodes, layoutLinks);
 
@@ -627,9 +704,9 @@ window.renderD3Sankey = async function(data, segments, ticker, detailedExpenses,
       // Sort: profit nodes first, then others, then expense nodes
       colNodes.sort((a, b) => {
         const aProfit = isProfitNode(a), bProfit = isProfitNode(b);
-        const aExpense = isExpenseNode(a), bExpense = isExpenseNode(b);
         if (aProfit && !bProfit) return -1;
         if (!aProfit && bProfit) return 1;
+        const aExpense = isExpenseNode(a), bExpense = isExpenseNode(b);
         if (aExpense && !bExpense) return 1;
         if (!aExpense && bExpense) return -1;
         // Both in same group: for expense group, bring Operating Income children up
@@ -874,7 +951,38 @@ window.renderD3Sankey = async function(data, segments, ticker, detailedExpenses,
       const belowBar = (d.name === 'Cost of Revenue' || d.name === 'Operating Expenses');
       let yBase;
       if (!isSeg) {
-        yBase = belowBar ? d.y1 + 8 : d.y0 - 22;
+        // Dynamic vertical offset for below-bar labels
+        if (belowBar) {
+          const rectHeight = d.y1 - d.y0;
+          const labelHeight = 18; // px, adjust if your label is taller
+          const minOffset = 12;
+          // Space above
+          let spaceAbove = d.y0;
+          const nodesAbove = nodes.filter(n => n.x0 === d.x0 && n.y1 < d.y0);
+          if (nodesAbove.length > 0) {
+            spaceAbove = d.y0 - Math.max(...nodesAbove.map(n => n.y1));
+          }
+          // Space below
+          let spaceBelow = chartHeight - d.y1;
+          const nodesBelow = nodes.filter(n => n.x0 === d.x0 && n.y0 > d.y1);
+          if (nodesBelow.length > 0) {
+            spaceBelow = Math.min(...nodesBelow.map(n => n.y0)) - d.y1;
+          }
+          // Try below first if enough space
+          if (spaceBelow >= labelHeight + minOffset) {
+            yBase = d.y1 + minOffset + labelHeight / 2 + 4; // Nudge down by 4px
+          } else if (spaceAbove >= labelHeight + minOffset) {
+            yBase = d.y0 - minOffset - labelHeight / 2;
+          } else if (spaceBelow >= spaceAbove) {
+            // Clamp to whatever space is available below
+            yBase = d.y1 + Math.max(minOffset, spaceBelow / 2);
+          } else {
+            // Clamp to whatever space is available above
+            yBase = d.y0 - Math.max(minOffset, spaceAbove / 2);
+          }
+        } else {
+          yBase = d.y0 - 22;
+        }
         const isCostDetailNode = ['COGS', 'Depreciation & Amortization', 'Other Cost of Revenue'].includes(d.name);
         const rightEdge = isCostDetailNode || d.x1 > chartWidth - 40;
         let labelX = cx;
@@ -890,15 +998,17 @@ window.renderD3Sankey = async function(data, segments, ticker, detailedExpenses,
         } else if (yBase < 100 || ['Gross Profit', 'Operating Income', 'Net Income'].includes(d.name)) {
           topEdgeYOffset = -25;
         }
-        // Collapsed right-edge labels into one line
+        // --- Universal vertical spacing for right-edge labels ---
+const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
+// Collapsed right-edge labels into one line
         if (rightEdge) {
           const displayName = d.name.replace(/\s*expenses?$/i, '');
           const midY = (d.y0 + d.y1) / 2;
+          const rectHeight = d.y1 - d.y0;
           // Ensure negative values are displayed with appropriate styling
           // Directly check the global profit status rather than just the local value
           let isNegative = false;
           let valueToUse = d.value;
-          
           // Set loss status based on overall company profitability
           if (displayName === 'Operating Income' || displayName.includes('Operating')) {
               isNegative = !isProfitable;
@@ -918,7 +1028,6 @@ window.renderD3Sankey = async function(data, segments, ticker, detailedExpenses,
               valueToUse = -Math.abs(data.netIncome); // Force negative for correct display
               d.value = Math.abs(data.netIncome); // Set for value label
           }
-          // Check gross profit terminology too
           if (displayName === 'Gross Profit' || displayName.includes('Gross')) {
               isNegative = !isGrossProfitable;
               valueToUse = -Math.abs(data.grossProfit); // Force negative for correct display
@@ -928,21 +1037,45 @@ window.renderD3Sankey = async function(data, segments, ticker, detailedExpenses,
               valueToUse = -Math.abs(data.grossProfit); // Force negative for correct display
               d.value = Math.abs(data.grossProfit); // Set for value label
           }
-          
           // For negative values, display only the label with loss amount already included
           const displayLabel = isNegative ? formatNodeLabel(displayName, valueToUse) : displayName;
-          
           // Value for display  
           const dollarValue = isNegative ? 
                 Math.abs(valueToUse || d.value) : // Use absolute value for the display 
                 d.value;
-
-          // For right-edge nodes, we need to add value displays for Loss nodes
-          // Add the node title first
+          // --- Smart single-line if rect is small ---
+          const SMALL_RECT_HEIGHT = 10; // px, threshold for single-line label
+          if (rectHeight < SMALL_RECT_HEIGHT) {
+            // Render as one line: "$1.60B - Income Tax"
+            // Render as one line, but split into tspans for color
+            const textEl = labelGroup.append('text')
+              .attr('class', 'nodelabel-right nodelabel-right-single')
+              .attr('x', labelX)
+              .attr('y', midY)
+              .attr('text-anchor', labelAnchor)
+              .attr('alignment-baseline', 'middle')
+              .style('font-size', '14px')
+              .style('font-weight', '600')
+              .style('paint-order', 'stroke')
+              .style('stroke', 'white')
+              .style('stroke-width', 4)
+              .style('stroke-linejoin', 'round')
+              .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+            // Force red for expense nodes
+            const isExpenseNode = ['COGS','Depreciation & Amortization','Other Cost of Revenue'].includes(d.name) || d.name === 'Cost of Revenue' || d.name === 'Operating Expenses' || d.name.includes('Expense');
+            textEl.append('tspan')
+              .text(formatDollars(isNegative ? -dollarValue : dollarValue))
+              .style('fill', (isNegative || isExpenseNode) ? '#e74c3c' : nodeSolidColor(d.name));
+            textEl.append('tspan')
+              .text(' - ' + displayLabel)
+              .style('fill', '#eceff4');
+            return;
+          }
+          // Otherwise, use two-line layout
           labelGroup.append('text')
             .attr('class', 'nodelabel-right')
             .attr('x', labelX)
-            .attr('y', midY - 10) // Shift up to make room for value below
+            .attr('y', midY - LABEL_VERTICAL_SPACING/2) // Universal spacing above value
             .attr('text-anchor', labelAnchor)
             .attr('alignment-baseline', 'middle')
             .text(displayLabel) // Just show the label (Net Loss, etc.)
@@ -954,23 +1087,23 @@ window.renderD3Sankey = async function(data, segments, ticker, detailedExpenses,
             .style('stroke-width', 6)
             .style('stroke-linejoin', 'round')
             .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
-            
           // Then add the dollar amount below
           labelGroup.append('text')
             .attr('class', 'nodelabel-right-value')
             .attr('x', labelX)
-            .attr('y', midY + 10) // Position below the title
+            .attr('y', midY + LABEL_VERTICAL_SPACING/2) // Universal spacing below title
             .attr('text-anchor', labelAnchor)
             .attr('alignment-baseline', 'middle')
             .text(formatDollars(isNegative ? -dollarValue : dollarValue)) // Show formatted value
             .style('font-size', '14px')
             .style('font-weight', 'bold')
-            .style('fill', isNegative ? '#e74c3c' : nodeSolidColor(d.name)) // Bright red for negative dollar amounts
+            // Force red for expense nodes
+            .style('fill', (isNegative || ['COGS','Depreciation & Amortization','Other Cost of Revenue','Cost of Revenue','Operating Expenses'].includes(d.name) || d.name.includes('Expense')) ? '#e74c3c' : nodeSolidColor(d.name)) // Bright red for negative dollar amounts
             .style('paint-order', 'stroke')
             .style('stroke', 'white')
             .style('stroke-width', 4)
             .style('stroke-linejoin', 'round')
-            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))'); 
+            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
           return;
         }
             // Use formatNodeLabel to potentially change terminology (e.g., income → loss)
@@ -1085,22 +1218,142 @@ window.renderD3Sankey = async function(data, segments, ticker, detailedExpenses,
             .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
         }
       } else {
-        // Collapsed left-edge labels into one line (Title - Dollar Amount)
-        labelGroup.append('text')
-          .attr('class', 'nodelabel-left')
-          .attr('x', cx)
-          .attr('y', (d.y0 + d.y1) / 2)
-          .attr('text-anchor', anchor)
-          .attr('alignment-baseline', 'middle')
-          .text(shortenSegmentName(d.name) + ' - ' + formatDollars(d.value))
-          .style('font-size', '14px')
-          .style('font-weight', 'bold')
-          .style('fill', '#999') // Changed from nodeSolidColor(d.name) to #999
-          .style('paint-order', 'stroke')
-          .style('stroke', 'white')
-          .style('stroke-width', 6)
-          .style('stroke-linejoin', 'round')
-          .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+        // Universal three-line label logic for left-edge (segment) nodes
+        const rectHeight = d.y1 - d.y0;
+        const THREE_LINE_THRESHOLD = 34; // px, threshold for three-line label
+        const TWO_LINE_THRESHOLD = 18; // px, threshold for two-line label
+        const labelFontSize = 13;
+        const valueFontSize = 12;
+        const centerY = (d.y0 + d.y1) / 2;
+        // Helper to split a segment name into up to two lines, breaking at spaces or hyphens
+        function splitSegmentNameForLines(name) {
+          // Prefer breaking at space nearest to middle, or hyphen
+          let clean = String(name).trim();
+          if (clean.length < 16) return [clean];
+          // Try hyphen first
+          let hyphenIdx = clean.indexOf('-');
+          if (hyphenIdx > 3 && hyphenIdx < clean.length - 3) {
+            return [clean.slice(0, hyphenIdx + 1), clean.slice(hyphenIdx + 1).trim()];
+          }
+          // Otherwise, break at nearest space to middle
+          let mid = Math.floor(clean.length / 2);
+          let best = clean.length;
+          let splitAt = -1;
+          for (let i = 3; i < clean.length - 3; ++i) {
+            if (clean[i] === ' ') {
+              let dist = Math.abs(i - mid);
+              if (dist < best) {
+                best = dist;
+                splitAt = i;
+              }
+            }
+          }
+          if (splitAt > 0) {
+            return [clean.slice(0, splitAt), clean.slice(splitAt + 1)];
+          }
+          // Fallback: just split into two near the middle
+          return [clean.slice(0, mid), clean.slice(mid)];
+        }
+        const segLines = splitSegmentNameForLines(shortenSegmentName(d.name));
+        if (rectHeight >= THREE_LINE_THRESHOLD) {
+          // Render as three lines: segment name split across two lines, value on third
+          labelGroup.append('text')
+            .attr('class', 'nodelabel-left nodelabel-left-title')
+            .attr('x', cx)
+            .attr('y', centerY - labelFontSize)
+            .attr('text-anchor', anchor)
+            .attr('alignment-baseline', 'middle')
+            .text(segLines[0] || '')
+            .style('font-size', labelFontSize + 'px')
+            .style('font-weight', 'bold')
+            .style('fill', '#999')
+            .style('paint-order', 'stroke')
+            .style('stroke', 'white')
+            .style('stroke-width', 5)
+            .style('stroke-linejoin', 'round')
+            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+          if (segLines[1]) {
+            labelGroup.append('text')
+              .attr('class', 'nodelabel-left nodelabel-left-title')
+              .attr('x', cx)
+              .attr('y', centerY)
+              .attr('text-anchor', anchor)
+              .attr('alignment-baseline', 'middle')
+              .text(segLines[1])
+              .style('font-size', labelFontSize + 'px')
+              .style('font-weight', 'bold')
+              .style('fill', '#999')
+              .style('paint-order', 'stroke')
+              .style('stroke', 'white')
+              .style('stroke-width', 5)
+              .style('stroke-linejoin', 'round')
+              .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+          }
+          labelGroup.append('text')
+            .attr('class', 'nodelabel-left nodelabel-left-value')
+            .attr('x', cx)
+            .attr('y', centerY + labelFontSize + 2)
+            .attr('text-anchor', anchor)
+            .attr('alignment-baseline', 'middle')
+            .text(formatDollars(d.value))
+            .style('font-size', valueFontSize + 'px')
+            .style('font-weight', 'bold')
+            .style('fill', '#bbb')
+            .style('paint-order', 'stroke')
+            .style('stroke', 'white')
+            .style('stroke-width', 4)
+            .style('stroke-linejoin', 'round')
+            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+        } else if (rectHeight >= TWO_LINE_THRESHOLD) {
+          // Render as two lines: segment name and value
+          labelGroup.append('text')
+            .attr('class', 'nodelabel-left nodelabel-left-title')
+            .attr('x', cx)
+            .attr('y', centerY - 4)
+            .attr('text-anchor', anchor)
+            .attr('alignment-baseline', 'middle')
+            .text(segLines.join(' '))
+            .style('font-size', labelFontSize + 'px')
+            .style('font-weight', 'bold')
+            .style('fill', '#999')
+            .style('paint-order', 'stroke')
+            .style('stroke', 'white')
+            .style('stroke-width', 5)
+            .style('stroke-linejoin', 'round')
+            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+          labelGroup.append('text')
+            .attr('class', 'nodelabel-left nodelabel-left-value')
+            .attr('x', cx)
+            .attr('y', centerY + labelFontSize + 2)
+            .attr('text-anchor', anchor)
+            .attr('alignment-baseline', 'middle')
+            .text(formatDollars(d.value))
+            .style('font-size', valueFontSize + 'px')
+            .style('font-weight', 'bold')
+            .style('fill', '#bbb')
+            .style('paint-order', 'stroke')
+            .style('stroke', 'white')
+            .style('stroke-width', 4)
+            .style('stroke-linejoin', 'round')
+            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+        } else {
+          // Collapsed left-edge labels into one line (Title - Dollar Amount)
+          labelGroup.append('text')
+            .attr('class', 'nodelabel-left')
+            .attr('x', cx)
+            .attr('y', centerY)
+            .attr('text-anchor', anchor)
+            .attr('alignment-baseline', 'middle')
+            .text(segLines.join(' ') + ' - ' + formatDollars(d.value))
+            .style('font-size', labelFontSize + 'px')
+            .style('font-weight', 'bold')
+            .style('fill', '#999')
+            .style('paint-order', 'stroke')
+            .style('stroke', 'white')
+            .style('stroke-width', 5)
+            .style('stroke-linejoin', 'round')
+            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+        }
         return;
       }
     });

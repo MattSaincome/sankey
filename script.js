@@ -71,6 +71,12 @@ document.getElementById('submit').addEventListener('click', async () => {
     if (response.ok) {
       // Only hide loading when we successfully render
       await renderSankey(data, ticker);
+      if (window.renderCompetitorsWidget) {
+        renderCompetitorsWidget(ticker);
+      }
+      if (window.renderValuationWidget) {
+        renderValuationWidget(ticker);
+      }
       loadingEl.style.display = 'none';
     } else {
       loadingEl.style.display = 'none';

@@ -1,23 +1,31 @@
+require('dotenv').config();
 const fetch = require('node-fetch');
 const path = require('path');
 const express = require('express');
 
 const app = express();
+// Create a dedicated router for API endpoints
+const apiRouter = express.Router();
 const PORT = process.env.PORT || 3000;
-const API_KEY = 'IjDyocJmKTZRC0bhbpvFyvkoJetdtGHJ';
+const API_KEY = process.env.FMP_API_KEY;
 
 // Serve static assets from /public and project root
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname)));
+
+// Parse JSON request bodies
+app.use(express.json());
+
+// Mount the API router at /api
+app.use('/api', apiRouter);
 
 // Explicit route to serve the FirstLookStocks watermark image
 app.get('/firstlookstocks-watermark.png', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'firstlookstocks-watermark.png'));
 });
 
-app.use(express.static(path.join(__dirname)));
-
 // Autocomplete endpoint: resolve ticker symbols by name or symbol
-app.get('/api/search', async (req, res) => {
+apiRouter.get('/search', async (req, res) => {
   const q = req.query.q;
   if (!q) return res.json([]);
   try {
@@ -31,7 +39,7 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-app.get('/api/income-statement', async (req, res) => {
+apiRouter.get('/income-statement', async (req, res) => {
   const ticker = req.query.ticker;
   if (!ticker) return res.status(400).json({ error: 'Ticker is required' });
   try {
@@ -144,7 +152,98 @@ app.get('/api/income-statement', async (req, res) => {
 });
 
 // New endpoint for revenue segmentation with segment-level YoY growth
-app.get('/api/revenue-segmentation', async (req, res) => {
+
+// --- Generic FMP Proxy API ---
+const FMP_API_KEY = process.env.FMP_API_KEY;
+// Handle both /api/fmp-proxy and /api/fmp-proxy/data routes
+apiRouter.get(['/fmp-proxy', '/fmp-proxy/data'], async (req, res) => {
+  console.log('[FMP Proxy] Query params:', req.query);
+  // Extract all possible parameters
+  const { endpoint, symbol, period, limit, ...otherParams } = req.query;
+  
+  if (!endpoint || !symbol) {
+    return res.status(400).json({ error: 'Endpoint and symbol are required' });
+  }
+  
+  // Construct the base URL
+  let url = `https://financialmodelingprep.com/api/v3/${endpoint}/${encodeURIComponent(symbol)}`;
+  
+  // Build query parameters
+  const params = new URLSearchParams();
+  if (period) params.append('period', period);
+  if (limit) params.append('limit', limit);
+  
+  // Add any additional parameters from the query
+  Object.entries(otherParams).forEach(([key, value]) => {
+    if (key !== 'apikey' && value) { // Skip apikey as we'll add our own
+      params.append(key, value);
+    }
+  });
+  
+  // Add API key
+  params.append('apikey', FMP_API_KEY);
+  
+  // Complete URL
+  const fullUrl = `${url}?${params.toString()}`;
+  console.log(`[FMP Proxy] Fetching: ${fullUrl.replace(FMP_API_KEY, 'API_KEY_HIDDEN')}`);
+  
+  try {
+    const resp = await fetch(fullUrl);
+    console.log(`[FMP Proxy] Response status: ${resp.status}`);
+    
+    if (!resp.ok) {
+      console.error(`[FMP Proxy] Error response: ${resp.status} ${resp.statusText}`);
+      return res.status(502).json({ 
+        error: 'Failed to fetch from FMP', 
+        status: resp.status,
+        statusText: resp.statusText 
+      });
+    }
+    
+    const text = await resp.text();
+    console.log(`[FMP Proxy] Response length: ${text.length} bytes`);
+    
+    try {
+      const data = JSON.parse(text);
+      if (Array.isArray(data)) {
+        console.log(`[FMP Proxy] Received array with ${data.length} items`);
+      } else {
+        console.log(`[FMP Proxy] Received object response`);
+      }
+      res.json(data);
+    } catch (parseErr) {
+      console.error('[FMP Proxy] JSON parse error:', parseErr);
+      console.log('[FMP Proxy] Raw response:', text.substring(0, 200) + '...');
+      res.status(500).json({ error: 'Invalid JSON response from FMP API' });
+    }
+  } catch (err) {
+    console.error('[FMP Proxy] Fetch error:', err);
+    res.status(500).json({ error: 'Server error', message: err.message });
+  }
+});
+
+// --- Competitors API Proxy ---
+const PEERS_API_KEY = process.env.FMP_API_KEY;
+apiRouter.get('/competitors', async (req, res) => {
+  const ticker = req.query.ticker;
+  if (!ticker) return res.status(400).json({ error: 'Ticker is required' });
+  try {
+    const url = `https://financialmodelingprep.com/stable/stock-peers?symbol=${encodeURIComponent(ticker)}&apikey=${PEERS_API_KEY}`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      return res.status(502).json({ error: 'Failed to fetch competitors from FMP' });
+    }
+    const peers = await resp.json();
+    if (!Array.isArray(peers)) {
+      return res.status(500).json({ error: 'Unexpected response from FMP' });
+    }
+    res.json(peers);
+  } catch (err) {
+    console.error('Competitors API error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+apiRouter.get('/revenue-segmentation', async (req, res) => {
   const ticker = req.query.ticker;
   if (!ticker) return res.status(400).json({ error: 'Ticker is required' });
   try {
@@ -189,7 +288,7 @@ app.get('/api/revenue-segmentation', async (req, res) => {
 });
 
 // New endpoint for income statement YoY growth metrics
-app.get('/api/income-statement-growth', async (req, res) => {
+apiRouter.get('/income-statement-growth', async (req, res) => {
   const ticker = req.query.ticker;
   if (!ticker) return res.status(400).json({ error: 'Ticker is required' });
   try {
@@ -230,6 +329,161 @@ app.get('/api/income-statement-growth', async (req, res) => {
   }
 });
 
+// Value Investor Bot chat relay endpoint
+apiRouter.post('/value-investor-bot', express.json(), async (req, res) => {
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  if (!OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'OpenAI API key not configured.' });
+  }
+  const userMessage = req.body.message;
+  const history = req.body.history || [];
+  if (!userMessage) return res.status(400).json({ error: 'Message is required.' });
+
+  // Compose messages array for OpenAI
+  const messages = [
+    { role: 'system', content: `This GPT simulates Warren Buffett with comprehensive knowledge of everything Buffett has publicly written, said, or endorsed, including annual shareholder letters, interviews, speeches, and investing principles. It emulates Buffett's voice, mannerisms, and investment philosophy, especially focusing on long-term value investing, intrinsic value calculation, business quality, and management integrity. The GPT interprets stock information from a connected user-provided dataset, which includes company financials, metrics, and qualitative insights, and responds as Buffett would — conservatively, rationally, and with a long-term orientation.
+
+**Be concise, frank, and direct—like a human trying to get a point across. Cut to the chase, avoid repetition, and don't sugarcoat. Favor short, punchy sentences.**
+// --- Place all API endpoints above this line ---
+
+// This is a placeholder for the original perplexity-financial endpoint
+// Now implemented above
+
+// Perplexity API endpoint for retrieving financial metrics
+apiRouter.get('/perplexity-financial', async (req, res) => {
+  const ticker = req.query.ticker;
+  const metric = req.query.metric;
+  
+  if (!ticker || !metric) {
+    return res.status(400).json({ error: 'Both ticker and metric are required' });
+  }
+  
+  // Get Perplexity API key from environment variables
+  const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
+  if (!PERPLEXITY_API_KEY) {
+    return res.status(500).json({ error: 'Perplexity API key not configured.' });
+  }
+  
+  try {
+    console.log(`[Perplexity] Fetching financial data for ${ticker}, metric: ${metric}`);
+    
+    // Create a very specific query optimized for numerical responses
+    const query = `You are a financial data API that only returns numbers. 
+    What is the exact numerical value for the ${metric} of ${ticker} stock?
+    Respond with ONLY the numerical value, no text, symbols, or explanation.
+    Example response: 15.7`;
+    
+    // Make the API request using one of the official Perplexity models
+    const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'sonar',  // Using the official Perplexity model from their docs
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a financial data API that only returns numbers. Never include any text, just the numerical value.'
+          },
+          { 
+            role: 'user', 
+            content: query 
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 30  // Limiting for efficiency
+      })
+    });
+    
+    // Better error handling
+    if (!perplexityResponse.ok) {
+      const errorText = await perplexityResponse.text().catch(() => 'Failed to get error details');
+      console.error(`[Perplexity] Error: ${perplexityResponse.status} ${perplexityResponse.statusText}`);
+      console.error(`[Perplexity] Error details: ${errorText}`);
+      
+      // If we get rate limited, let the client know
+      if (perplexityResponse.status === 429) {
+        return res.status(429).json({ error: 'Rate limit exceeded for Perplexity API' });
+      }
+      
+      return res.status(500).json({ error: 'Failed to fetch data from Perplexity' });
+    }
+    
+    try {
+      const data = await perplexityResponse.json();
+      console.log(`[Perplexity] Raw response:`, data);
+      
+      if (data.choices && data.choices[0] && data.choices[0].message) {
+        const value = data.choices[0].message.content.trim();
+        console.log(`[Perplexity] Raw value: "${value}"`);
+        
+        // Try multiple approaches to extract a number
+        // 1. First check if the entire response is just a number
+        if (!isNaN(parseFloat(value)) && isFinite(value)) {
+          return res.json({ metric, value: parseFloat(value).toString() });
+        }
+        
+        // 2. Try to extract numbers using regex
+        const numMatch = value.match(/\d+([,.]\d+)?/g);
+        if (numMatch && numMatch.length > 0) {
+          // Remove commas and convert to standard number format
+          const cleanNumber = numMatch[0].replace(/,/g, '');
+          return res.json({ metric, value: cleanNumber });
+        }
+        
+        // 3. If no number found but we have text, return it
+        return res.json({ metric, value });
+      } else {
+        console.error('[Perplexity] Unexpected response format:', data);
+        return res.status(500).json({ error: 'Unexpected response format from Perplexity' });
+      }
+    } catch (parseError) {
+      console.error('[Perplexity] JSON parse error:', parseError);
+      return res.status(500).json({ error: 'Failed to parse Perplexity response' });
+    }
+  } catch (err) {
+    console.error('[Perplexity] Error:', err);
+    return res.status(500).json({ error: 'Server error', message: err.message });
+  }
+});
+
+// Feature Request endpoint to collect user feature requests
+apiRouter.post('/feature-request', express.json(), async (req, res) => {
+  try {
+    const { email, featureRequest, marketingConsent } = req.body;
+    
+    // Validate input
+    if (!email || !featureRequest) {
+      return res.status(400).json({ error: 'Email and feature request are required' });
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+    
+    // Log the feature request (in a real application, this would be saved to a database)
+    console.log(`[Feature Request] New request from ${email}:`, {
+      featureRequest,
+      marketingConsent: !!marketingConsent,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Return success response
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Feature request received. Thank you for your feedback!' 
+    });
+  } catch (err) {
+    console.error('[Feature Request] Error:', err);
+    return res.status(500).json({ error: 'Server error', message: err.message });
+  }
+});
+
+// Catch-all route - must be last
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });

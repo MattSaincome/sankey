@@ -1,0 +1,23 @@
+# Environment variables
+.env
+
+# Dependency directories
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+
+# Build and distribution directories
+dist/
+build/
+coverage/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo

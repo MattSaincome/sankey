@@ -5,58 +5,110 @@
   <title>Income Statement Sankey Chart</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    :root {
+      --primary-color: #4cc9f0;
+      --primary-hover: #49b6f5;
+      --secondary-color: #4361ee;
+      --bg-dark: #121a24;
+      --bg-card: rgba(25, 32, 45, 0.7);
+      --text-light: #ecf0f3;
+      --text-muted: #a9b4c4;
+      --border-radius: 8px;
+      --transition-speed: 0.2s;
+    }
     body {
       margin: 0;
-      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      background: linear-gradient(135deg, #0f1b2d, #162a41, #1e3a58);
       font-family: 'Inter', sans-serif;
-      color: #eceff4;
+      color: var(--text-light);
     }
-    .header-center {
-      width: 100vw;
+    .app-header {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      margin-top: 30px;
-      margin-bottom: 8px;
+      width: 100%;
+      padding: 20px 0;
+      position: relative;
     }
-    .headline-row {
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .brand-section {
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 18px;
-      margin-bottom: 0.5em;
     }
-    .headline-mascot {
-      height: 56px;
-      width: auto;
-      margin-right: 4px;
-      border-radius: 12px;
-      background: #222c;
-      box-shadow: 0 2px 10px #0004;
+    .brand-logo {
+      width: 180px;
+      height: auto;
+      display: block;
+      margin-right: 20px;
     }
-    .headline-logo {
-      height: 48px;
-      width: auto;
-      margin-left: 4px;
-      border-radius: 8px;
-      background: #222c;
-      box-shadow: 0 2px 10px #0004;
+    .search-section {
+      flex: 1;
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 20px 0;
     }
-    .header-center h1 {
-      color: #eceff4;
+    .search-container {
+      position: relative;
+      width: 100%;
+      background: var(--bg-card);
+      border-radius: var(--border-radius);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      transition: all var(--transition-speed) ease;
+      display: flex;
+      overflow: hidden;
+    }
+    .search-container:hover, .search-container:focus-within {
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+    .search-icon {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+      font-size: 16px;
+    }
+    #ticker {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-light);
+      font-size: 15px;
+      font-weight: 500;
+      padding: 16px 16px 16px 42px;
+      width: 100%;
+      outline: none;
+      font-family: 'Inter', sans-serif;
+      transition: all var(--transition-speed) ease;
+    }
+    #ticker::placeholder {
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+    #submit {
+      background: var(--primary-color);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      padding: 0 24px;
       font-weight: 600;
-      font-size: 2.2em;
-      text-align: center;
-      margin-bottom: 0;
+      font-size: 14px;
       letter-spacing: 0.02em;
-      padding: 0 10px;
+      transition: all var(--transition-speed) ease;
     }
-    .input-row {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
+    #submit:hover {
+      background: var(--primary-hover);
     }
     #visualization {
       display: flex;
@@ -79,13 +131,14 @@
     .chart-actions {
       display: flex;
       flex-direction: row;
-      justify-content: flex-end;
+      justify-content: flex-start;
       align-items: center;
       width: 98vw;
       max-width: 1200px;
       margin: 0 auto 0 auto;
       margin-bottom: 24px;
       gap: 8px;
+      padding-left: 20px;
     }
     input, button {
       background: #2c3e50;
@@ -105,30 +158,704 @@
       font-family: 'Inter', sans-serif;
     }
   </style>
+  <style>
+    /* Dashboard grid layout */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2rem;
+      padding: 2rem 2vw;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .dashboard-widget {
+      background: #181a1b;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px #0002;
+      padding: 24px 28px 18px 28px;
+      min-width: 0;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
+    }
+    .dashboard-title {
+      font-size: 1.08em;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      margin-bottom: 8px;
+      margin-top: 2px;
+      line-height: 1.1;
+      text-align: center;
+      background: linear-gradient(90deg, #4cc9f0 0%, #4361ee 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      color: transparent;
+      display: block;
+      width: 100%;
+    }
+    .competitors-dashboard-widget {
+      min-width: 300px;
+      max-width: 100%;
+      width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    /* Slightly smaller font for competitors table */
+    #competitors-widget, #competitors-widget * {
+      font-size: 0.97em !important;
+    }
+    @media (max-width: 1100px) {
+      .competitors-dashboard-widget {
+        min-width: 340px;
+        max-width: 100%;
+      }
+    }
+    .dashboard-widget--full {
+      grid-column: 1 / -1;
+      padding-bottom: 0;
+    }
+    @media (max-width: 900px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+        gap: 1.2rem;
+        padding: 1.2rem 0.5vw;
+      }
+      .dashboard-widget--full {
+        grid-column: auto;
+      }
+    }
+    /* Value Investor Bot chat styles */
+    .value-bot-chat {
+      display: flex;
+      flex-direction: column;
+      background: #181a20;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px #0002;
+      padding: 0;
+      min-height: 400px;
+      max-width: 100%;
+      margin: 0 auto;
+      overflow: hidden;
+      border: 1px solid #23242a;
+    }
+    .value-bot-messages {
+      flex: 1;
+      width: 100%;
+      overflow-y: auto;
+      padding: 18px 16px 6px 16px;
+      min-height: 260px;
+      max-height: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-sizing: border-box;
+    }
+    .value-bot-message {
+      background: #23242a;
+      border-radius: 7px;
+      padding: 8px 12px;
+      width: 100%;
+      word-break: break-word;
+      margin-bottom: 2px;
+      color: #eceff4;
+      box-shadow: 0 1px 4px #0001;
+      font-family: 'Inter', sans-serif;
+      white-space: pre-line;
+      box-sizing: border-box;
+    }
+    .value-bot-message.user {
+      align-self: flex-end;
+      background: linear-gradient(90deg, #4cc9f0 0%, #4361ee 100%);
+      color: #fff;
+      width: 100%;
+    }
+    .value-bot-message.bot {
+      align-self: flex-start;
+      background: #23242a;
+      color: #eceff4;
+      width: 100%;
+    }
+    .value-bot-form {
+      display: flex;
+      gap: 8px;
+      padding: 6px 10px 10px 10px;
+      border-top: 1px solid #23242a;
+      background: none;
+    }
+    .value-bot-input {
+      flex: 1;
+      border-radius: 6px;
+      border: 1px solid #34495e;
+      background: #23242a;
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 1em;
+      outline: none;
+      font-family: 'Inter', sans-serif;
+      transition: border 0.2s;
+    }
+    .value-bot-input:focus {
+      border: 1.5px solid #4cc9f0;
+    }
+    .value-bot-send {
+      background: linear-gradient(90deg, #4cc9f0 0%, #4361ee 100%);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0 18px;
+      font-size: 1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .value-bot-send:hover {
+      background: linear-gradient(90deg, #4361ee 0%, #4cc9f0 100%);
+    }
+    
+    /* Sample questions styling */
+    .sample-questions {
+      padding: 10px 16px;
+      border-top: 1px solid #23242a;
+      background: #1d1e24;
+    }
+    
+    .sample-questions-title {
+      font-size: 0.9em;
+      font-weight: 600;
+      color: #b2bec3;
+      margin-bottom: 8px;
+    }
+    
+    .sample-questions-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    
+    .sample-question-btn {
+      background: #2a2b32;
+      color: #eceff4;
+      border: 1px solid #34495e;
+      border-radius: 16px;
+      padding: 6px 12px;
+      font-size: 0.85em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .sample-question-btn:hover {
+      background: #34495e;
+      border-color: #4cc9f0;
+    }
+    
+    /* Feature Request Form Styling */
+    .feature-request-widget {
+      min-height: 340px;
+    }
+    
+    #feature-request-container {
+      width: 100%;
+      padding: 10px 20px;
+      box-sizing: border-box;
+      margin-top: 0;
+      background: #1e1e1e;
+      color: #eceff4;
+      border-radius: 0 0 8px 8px;
+      overflow: hidden;
+    }
+    
+    .feature-request-widget {
+      background: #181a1b;
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      box-sizing: border-box;
+      overflow: hidden;
+      width: 100%;
+    }
+    
+    .feature-request-widget:hover {
+      box-shadow: 0 6px 22px rgba(0, 0, 0, 0.25);
+    }
+    
+    .input-with-icon {
+      position: relative;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .form-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0.7;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+    
+    .feature-request-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 5px 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .feature-form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .feature-form-group label {
+      font-size: 0.9em;
+      font-weight: 500;
+      color: #dfe6e9;
+      margin-bottom: 2px;
+    }
+    
+    .feature-form-group input[type="email"],
+    .feature-form-group textarea {
+      background: #232323;
+      border: 1px solid #34495e;
+      border-radius: 6px;
+      color: #eceff4;
+      padding: 10px 14px 10px 36px;
+      font-size: 0.95em;
+      width: 100%;
+      max-width: 100%;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) inset;
+      box-sizing: border-box;
+    }
+    
+    .feature-form-group textarea {
+      min-height: 90px;
+      resize: vertical;
+      max-width: 100%;
+    }
+    
+    .feature-form-group input[type="email"]:focus,
+    .feature-form-group textarea:focus {
+      border-color: #4cc9f0;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(76, 201, 240, 0.25);
+    }
+    
+    .checkbox-group {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      accent-color: #4cc9f0;
+      cursor: pointer;
+    }
+    
+    .checkbox-group label {
+      font-size: 0.9em;
+      color: #eceff4;
+      cursor: pointer;
+      flex: 1;
+      min-width: 200px;
+    }
+    
+    .feature-form-actions {
+      margin-top: 10px;
+      display: flex;
+      justify-content: flex-start;
+    }
+    
+    .feature-submit-btn {
+      background: linear-gradient(90deg, #4cc9f0 0%, #4361ee 100%);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 22px;
+      font-size: 0.95em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 10px rgba(67, 97, 238, 0.3);
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .feature-submit-btn:hover {
+      background: linear-gradient(90deg, #4361ee 0%, #4cc9f0 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(67, 97, 238, 0.4);
+    }
+    
+    .feature-submit-btn:active {
+      transform: translateY(0);
+    }
+    
+    .feature-form-message {
+      font-size: 0.9em;
+      color: #dfe6e9;
+      margin-top: 8px;
+      margin-bottom: 4px;
+      font-style: italic;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .feature-form-status {
+      height: 24px;
+      font-size: 0.92em;
+      margin-top: 8px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      padding: 4px 0;
+      border-radius: 4px;
+    }
+    
+    .feature-form-status.success {
+      color: #00b894;
+      background-color: rgba(0, 184, 148, 0.1);
+      padding-left: 10px;
+    }
+    
+    .feature-form-status.error {
+      color: #ff7675;
+      background-color: rgba(255, 118, 117, 0.1);
+      padding-left: 10px;
+    }
+    
+    /* Add focus effects for better interaction */
+    .input-with-icon:focus-within .form-icon {
+      opacity: 1;
+    }
+    
+    .input-with-icon:focus-within input,
+    .input-with-icon:focus-within textarea {
+      border-color: #4cc9f0;
+      box-shadow: 0 0 0 3px rgba(76, 201, 240, 0.25);
+    }
+    .value-bot-btn {
+      background: linear-gradient(90deg, #4cc9f0 0%, #4361ee 100%);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.7em 1.5em;
+      font-size: 1em;
+      font-weight: 600;
+      text-decoration: none;
+      box-shadow: 0 2px 8px #0002;
+      transition: background 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+      margin-top: 8px;
+      display: inline-block;
+    }
+    .value-bot-btn:hover {
+      background: linear-gradient(90deg, #4361ee 0%, #4cc9f0 100%);
+      box-shadow: 0 4px 16px #0003;
+      color: #fff;
+      text-decoration: none;
+    }
+    /* Competitors widget styles */
+    #competitors-row {
+      width: 98vw;
+      max-width: 1200px;
+      margin: 0 auto 0 auto;
+      display: flex;
+      flex-direction: row;
+      justify-content: flex-start;
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+    #competitors-widget {
+      margin-top: 4px;
+      background: #1e1e1e;
+      color: #eceff4;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px #0002;
+      padding: 16px 12px 14px 12px;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      font-family: 'Inter', sans-serif;
+      font-size: 1em;
+      align-self: flex-start;
+      overflow-x: auto;
+      box-sizing: border-box;
+    }
+    .competitors-title {
+      font-size: 1.25em;
+      font-weight: 600;
+      margin-bottom: 12px;
+      letter-spacing: 0.01em;
+    }
+    .competitors-header-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 18px;
+      background: #232323;
+      border-radius: 5px 5px 0 0;
+      padding: 7px 16px 7px 16px;
+      font-weight: 600;
+      color: #f6e58d;
+      font-size: 1em;
+      margin-bottom: 0;
+      border-bottom: 1px solid #313131;
+    }
+    .competitors-header-row .header {
+      font-weight: 600;
+      color: #f6e58d;
+      font-size: 1em;
+      letter-spacing: 0.01em;
+      padding-right: 0;
+    }
+    .competitors-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .competitor-item {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 18px;
+      background: #232323;
+      border-radius: 5px;
+      padding: 10px 16px;
+      box-shadow: 0 1px 4px #0001;
+      transition: background 0.2s;
+    }
+    .competitor-item:hover {
+      background: #292929;
+    }
+    .competitor-symbol {
+      font-weight: bold;
+      font-size: 1.08em;
+      letter-spacing: 0.03em;
+      margin-right: 4px;
+      color: #7ed6df;
+      min-width: 55px;
+    }
+    .competitor-name {
+      flex: 1;
+      color: #eceff4;
+      font-weight: 400;
+      font-size: 0.96em;
+      min-width: 80px;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .competitor-link {
+      cursor: pointer;
+      text-decoration: underline;
+      color: #81ecec;
+      transition: color 0.15s;
+    }
+    .competitor-link:hover {
+      color: #00cec9;
+      text-decoration: underline;
+    }
+    .competitor-price {
+      color: #f6e58d;
+      min-width: 70px;
+      text-align: right;
+      font-family: monospace;
+    }
+    .competitor-mktcap {
+      color: #b2bec3;
+      min-width: 70px;
+      text-align: right;
+      font-family: monospace;
+    }
+    .competitors-loading, .competitors-error {
+      color: #b2bec3;
+      font-size: 1em;
+      margin: 12px 0 8px 0;
+      text-align: center;
+    }
+    /* Valuation widget styles */
+    #valuation-widget {
+      margin-top: 20px;
+      margin-left: 0;
+      background: #181a1b;
+      color: #eceff4;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px #0002;
+      padding: 28px 38px 18px 38px;
+      width: 60%;
+      min-width: 340px;
+      max-width: 480px;
+      font-family: 'Inter', sans-serif;
+      font-size: 1.09em;
+      align-self: flex-start;
+    }
+    .valuation-title {
+      font-size: 1.22em;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      margin-bottom: 18px;
+      color: #fff;
+    }
+    .valuation-metrics-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 8px 16px;
+      align-items: center;
+    }
+    .valuation-metric-label {
+      color: #b2bec3;
+      font-weight: 500;
+      font-size: 1em;
+      text-align: left;
+      padding-right: 0.5em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .valuation-metric-value {
+      color: #f6e58d;
+      font-family: monospace;
+      font-size: 1em;
+      text-align: right;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    .valuation-loading, .valuation-error {
+      color: #b2bec3;
+      font-size: 1em;
+      margin: 12px 0 8px 0;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-  <div class="header-center">
-    <div class="headline-row">
-      <img src="/ChatGPT Image May 8, 2025, 06_12_40 PM.png" alt="Owl Mascot" class="headline-mascot" />
-      <h1>First Look Stocks</h1>
-      <img src="/firstlookstocks-watermark.png" alt="First Look Stocks Logo" class="headline-logo" />
+  <header class="app-header">
+  <div class="header-container">
+    <div class="brand-section">
+      <img src="/webheader image.png" alt="First Look Stocks" class="brand-logo" />
     </div>
-    <div class="input-row">
-      <input type="text" id="ticker" list="ticker-list" placeholder="Enter stock ticker or company name" autocomplete="off" />
+  </div>
+  <div class="search-section">
+    <div class="search-container">
+      <div class="search-icon">&#128269;</div>
+      <input type="text" id="ticker" list="ticker-list" placeholder="Search by ticker symbol or company name..." autocomplete="off" />
       <datalist id="ticker-list"></datalist>
-      <button id="submit">Take a first look</button>
+      <button id="submit">Analyze</button>
     </div>
   </div>
+</header>
   <div id="d3-chart-scroll-anchor"></div>
-  <div style="height: 20px;"></div>
-  <div id="visualization">
-    <div id="d3-chart"></div>
+  <div class="dashboard-grid">
+    <div class="dashboard-widget dashboard-widget--full">
+      <button class="widget-minimize-btn" title="Minimize">&#8211;</button>
+      <div class="dashboard-title">How They Make Money</div>
+      <div id="visualization">
+        <div id="d3-chart"></div>
+      </div>
+      <div class="chart-actions">
+        <button id="copy-screenshot" style="font-size:0.9em;padding:0.3em 0.7em;margin-right:8px;">Copy Chart</button>
+        <button id="download-chart" style="font-size:0.9em;padding:0.3em 0.7em;">Download Chart</button>
+      </div>
+    </div>
+    <div class="dashboard-widget dashboard-widget--full" id="value-bot-widget-full">
+      <button class="widget-minimize-btn" title="Minimize">&#8211;</button>
+      <div class="dashboard-title">Value Investor Bot</div>
+      <div id="value-bot-chat" class="value-bot-chat">
+        <div id="value-bot-messages" class="value-bot-messages"></div>
+        <div class="sample-questions">
+          <div class="sample-questions-title">Sample Questions:</div>
+          <div class="sample-questions-container">
+            <button type="button" class="sample-question-btn">Which metrics stand out to you?</button>
+            <button type="button" class="sample-question-btn">Look through the books and report back to me if this business is investable.</button>
+            <button type="button" class="sample-question-btn">What red flags do you see?</button>
+            <button type="button" class="sample-question-btn">What challenges might this business soon face?</button>
+            <button type="button" class="sample-question-btn">Should I make a long term investment in this business?</button>
+          </div>
+        </div>
+        <form id="value-bot-form" class="value-bot-form" autocomplete="off">
+          <input type="text" id="value-bot-input" class="value-bot-input" placeholder="Ask about value investing..." autocomplete="off" />
+          <button type="submit" class="value-bot-send">Send</button>
+        </form>
+      </div>
+    </div>
+    <div class="dashboard-widget">
+      <button class="widget-minimize-btn" title="Minimize">&#8211;</button>
+      <div class="dashboard-title">How They Are Valued</div>
+      <div id="valuation-widget"></div>
+    </div>
+    <div class="dashboard-widget competitors-dashboard-widget">
+      <button class="widget-minimize-btn" title="Minimize">&#8211;</button>
+      <div class="dashboard-title">Who They Compete With</div>
+      <div id="competitors-widget"></div>
+    </div>
+    <!-- Added feature request widget below competitors widget -->
+    <div class="dashboard-widget dashboard-widget--full feature-request-widget">
+      <button class="widget-minimize-btn" title="Minimize">&#8211;</button>
+      <div class="dashboard-title">Want Additional Features?</div>
+      <div id="feature-request-container">
+        <form id="feature-request-form" class="feature-request-form">
+          <div class="feature-form-group">
+            <label for="feature-email">Email Address:</label>
+            <div class="input-with-icon">
+              <svg class="form-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6ZM20 6L12 11L4 6H20ZM20 18H4V8L12 13L20 8V18Z" fill="#b2bec3"/>
+              </svg>
+              <input type="email" id="feature-email" name="email" required placeholder="Enter your email address" />
+            </div>
+          </div>
+          <div class="feature-form-group">
+            <label for="feature-request">Requested Features:</label>
+            <div class="input-with-icon">
+              <svg class="form-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 3H5C3.89 3 3 3.9 3 5V19C3 20.1 3.89 21 5 21H19C20.11 21 21 20.1 21 19V5C21 3.9 20.11 3 19 3ZM19 19H5V5H19V19ZM17 13H13V17H11V13H7V11H11V7H13V11H17V13Z" fill="#b2bec3"/>
+              </svg>
+              <textarea id="feature-request" name="featureRequest" rows="3" placeholder="Describe the features you'd like to see..."></textarea>
+            </div>
+          </div>
+          <div class="feature-form-group checkbox-group">
+            <input type="checkbox" id="feature-marketing" name="marketing" required />
+            <label for="feature-marketing">I agree to receive updates about new features</label>
+          </div>
+          <div class="feature-form-actions">
+            <button type="submit" class="feature-submit-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 6px;">
+                <path d="M2.01 21L23 12L2.01 3L2 10L17 12L2 14L2.01 21Z" fill="white"/>
+              </svg>
+              Submit Request
+            </button>
+          </div>
+          <p class="feature-form-message">We will alert you when new features arrive!</p>
+          <div id="feature-form-status" class="feature-form-status"></div>
+        </form>
+      </div>
+    </div>
+    <!-- Add more widgets here as needed, each in a dashboard-widget div -->
   </div>
-  <div class="chart-actions">
-    <button id="copy-screenshot" style="font-size:0.9em;padding:0.3em 0.7em;margin-right:8px;">Copy Chart</button>
-    <button id="download-chart" style="font-size:0.9em;padding:0.3em 0.7em;">Download Chart</button>
-  </div>
-  <div style="height: 60px;"></div>
   <div id="screenshot-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
     <div style="background:#fff;padding:24px;border-radius:8px;box-shadow:0 4px 16px #0003;max-width:90vw;max-height:90vh;display:flex;flex-direction:column;align-items:center;">
       <img id="screenshot-img" src="" alt="Chart Screenshot" style="max-width:80vw;max-height:70vh;border:1px solid #ccc;" />
@@ -138,9 +865,284 @@
       </div>
       <div style="margin-top:10px;font-size:0.95em;color:#333;">Right-click the image and choose <b>Copy Image</b> to copy to clipboard.</div>
     </div>
-  </div>
+  </div> 
+  <script src="competitors.js"></script>
+  <script src="valuation.js"></script>
   <script src="html2canvas.min.js"></script>
   <script src="script.js"></script>
   <script src="d3-sankey.js"></script>
+  <style>
+    .widget-minimize-btn {
+      background: none;
+      border: none;
+      color: #b2bec3;
+      font-size: 1.15em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      outline: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 5;
+    }
+    .widget-minimize-btn:hover {
+      color: #ffffff;
+    }
+    .widget-minimize-btn:active {
+      background: #2d2f31;
+    }
+    .dashboard-widget {
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: visible;
+    }
+    .dashboard-widget.collapsed {
+      min-height: unset !important;
+      max-height: 46px !important;
+      height: 46px !important;
+      overflow: hidden;
+      padding: 12px 20px 6px 20px !important;
+      border-left: 3px solid #4cc9f0;
+      box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+      cursor: pointer;
+      z-index: 1;
+    }
+    .dashboard-widget.collapsed > :not(.dashboard-title):not(.widget-minimize-btn) {
+      display: none !important;
+    }
+    .dashboard-widget.collapsed .dashboard-title {
+      font-size: 0.9em;
+      margin-bottom: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+    }
+    .dashboard-widget.collapsed .widget-minimize-btn {
+      transform: rotate(-90deg);
+    }
+    .dashboard-widget--full.collapsed {
+      width: 100% !important;
+    }
+  </style>
+
+  <script>
+    // Minimize/Expand widget functionality
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.widget-minimize-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const widget = btn.closest('.dashboard-widget');
+          widget.classList.toggle('collapsed');
+          if (widget.classList.contains('collapsed')) {
+            btn.textContent = '+';
+            btn.title = 'Expand';
+          } else {
+            btn.textContent = '–';
+            btn.title = 'Minimize';
+          }
+        });
+      });
+      
+      // Allow clicking on collapsed widget to expand it
+      document.querySelectorAll('.dashboard-widget').forEach(widget => {
+        widget.addEventListener('click', function(e) {
+          if (this.classList.contains('collapsed')) {
+            const btn = this.querySelector('.widget-minimize-btn');
+            this.classList.remove('collapsed');
+            if (btn) {
+              btn.textContent = '–';
+              btn.title = 'Minimize';
+            }
+          }
+        });
+      });
+    });
+  </script>
+  <!-- Add marked and DOMPurify for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+  <script>
+    // Value Investor Bot chat logic
+    const botMessagesDiv = document.getElementById('value-bot-messages');
+    const botForm = document.getElementById('value-bot-form');
+    const botInput = document.getElementById('value-bot-input');
+    const sampleQuestionBtns = document.querySelectorAll('.sample-question-btn');
+    let botHistory = [];
+
+    function appendBotMessage(content, sender) {
+      const msg = document.createElement('div');
+      msg.className = 'value-bot-message ' + sender;
+      if (sender === 'bot') {
+        // Render Markdown as HTML and sanitize
+        const html = DOMPurify.sanitize(marked.parse(content));
+        msg.innerHTML = html;
+      } else {
+        msg.textContent = content;
+      }
+      botMessagesDiv.appendChild(msg);
+      botMessagesDiv.scrollTop = botMessagesDiv.scrollHeight;
+    }
+    
+    // Add click handlers for sample question buttons
+    sampleQuestionBtns.forEach(btn => {
+      btn.addEventListener('click', function() {
+        const question = this.textContent;
+        botInput.value = question;
+        
+        // Simulate form submission
+        const submitEvent = new Event('submit');
+        botForm.dispatchEvent(submitEvent);
+      });
+    });
+    
+    // Function to hide sample questions
+    function hideSampleQuestions() {
+      const sampleQuestionsContainer = document.querySelector('.sample-questions');
+      if (sampleQuestionsContainer) {
+        sampleQuestionsContainer.style.display = 'none';
+      }
+    }
+    
+    // Feature Request Form Handling
+    const featureForm = document.getElementById('feature-request-form');
+    const formStatus = document.getElementById('feature-form-status');
+    
+    featureForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      // Clear previous status messages
+      formStatus.textContent = '';
+      formStatus.className = 'feature-form-status';
+      
+      // Get form values
+      const email = document.getElementById('feature-email').value.trim();
+      const featureRequest = document.getElementById('feature-request').value.trim();
+      const marketingConsent = document.getElementById('feature-marketing').checked;
+      
+      // Basic validation
+      if (!email) {
+        formStatus.textContent = 'Please enter your email address.';
+        formStatus.className = 'feature-form-status error';
+        return;
+      }
+      
+      if (!marketingConsent) {
+        formStatus.textContent = 'Please agree to receive marketing emails.';
+        formStatus.className = 'feature-form-status error';
+        return;
+      }
+      
+      // Set loading state
+      const submitBtn = featureForm.querySelector('.feature-submit-btn');
+      const originalBtnText = submitBtn.textContent;
+      submitBtn.textContent = 'Sending...';
+      submitBtn.disabled = true;
+      
+      try {
+        // Send request to the server
+        const response = await fetch('/api/feature-request', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            // Add CSRF protection token if available
+            ...(window.csrf && { 'X-CSRF-Token': window.csrf })
+          },
+          body: JSON.stringify({
+            email,
+            featureRequest,
+            marketingConsent
+          })
+        });
+        
+        if (response.ok) {
+          // Show success message
+          formStatus.textContent = 'Thank you! Your feature request has been submitted.';
+          formStatus.className = 'feature-form-status success';
+          
+          // Clear the form
+          featureForm.reset();
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Submission failed');
+        }
+      } catch (error) {
+        // Show error message
+        formStatus.textContent = `Error: ${error.message || 'Something went wrong'}`;
+        formStatus.className = 'feature-form-status error';
+      } finally {
+        // Reset button state
+        submitBtn.textContent = originalBtnText;
+        submitBtn.disabled = false;
+      }
+    });
+
+    botForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      let userMsg = botInput.value.trim();
+      if (!userMsg) return;
+      
+      // Hide sample questions after first question is submitted
+      hideSampleQuestions();
+
+      // On first message, prepend all widget data
+      if (botHistory.length === 0) {
+        let dataset = '';
+        // Sankey chart data
+        const sankeyDataDiv = document.getElementById('d3-chart');
+        let sankeyText = sankeyDataDiv ? sankeyDataDiv.innerText.trim() : '';
+        if (window.sankeyDataForBot) {
+          sankeyText = JSON.stringify(window.sankeyDataForBot, null, 2);
+        }
+        // Valuation widget data
+        const valDiv = document.getElementById('valuation-widget');
+        let valText = valDiv ? valDiv.innerText.trim() : '';
+        if (window.valuationDataForBot) {
+          valText = JSON.stringify(window.valuationDataForBot, null, 2);
+        }
+        // Competitors widget data
+        const compDiv = document.getElementById('competitors-widget');
+        let compText = compDiv ? compDiv.innerText.trim() : '';
+        if (window.competitorsDataForBot) {
+          compText = JSON.stringify(window.competitorsDataForBot, null, 2);
+        }
+        dataset = `DATASET:\nSankey Chart:\n${sankeyText}\n\nValuation Metrics:\n${valText}\n\nCompetitors:\n${compText}\n`;
+        userMsg = dataset + '\nQUESTION: ' + userMsg;
+      }
+
+      appendBotMessage(botInput.value.trim(), 'user');
+      botInput.value = '';
+      botInput.disabled = true;
+      // Show loading indicator
+      appendBotMessage('...', 'bot');
+      try {
+        const res = await fetch('/api/value-investor-bot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: userMsg, history: botHistory })
+        });
+        // Remove loading indicator
+        const loadingMsg = botMessagesDiv.querySelector('.value-bot-message.bot:last-child');
+        if (loadingMsg && loadingMsg.textContent === '...') loadingMsg.remove();
+        if (res.ok) {
+          const data = await res.json();
+          appendBotMessage(data.reply, 'bot');
+          botHistory.push({ role: 'user', content: userMsg });
+          botHistory.push({ role: 'assistant', content: data.reply });
+        } else {
+          appendBotMessage('Sorry, there was an error. Please try again.', 'bot');
+        }
+      } catch (err) {
+        // Remove loading indicator
+        const loadingMsg = botMessagesDiv.querySelector('.value-bot-message.bot:last-child');
+        if (loadingMsg && loadingMsg.textContent === '...') loadingMsg.remove();
+        appendBotMessage('Sorry, there was a network error.', 'bot');
+      }
+      botInput.disabled = false;
+      botInput.focus();
+    });
+  </script>
 </body>
 </html>
