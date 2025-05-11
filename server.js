@@ -12,6 +12,9 @@ if (!API_KEY) {
   throw new Error('FMP_API_KEY is not set in environment variables.');
 }
 
+// Export the app for serverless use
+module.exports = app;
+
 // Serve static assets from /public and project root
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname)));
@@ -20,7 +23,7 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 
 // Mount the API router at /api
-app.use('/api', apiRouter);
+app.use('/', apiRouter);
 
 // Explicit route to serve the FirstLookStocks watermark image
 app.get('/firstlookstocks-watermark.png', (req, res) => {
@@ -372,16 +375,16 @@ apiRouter.get('/perplexity-financial', async (req, res) => {
   if (!PERPLEXITY_API_KEY) {
     return res.status(500).json({ error: 'Perplexity API key not configured.' });
   }
-  
+
   try {
     console.log(`[Perplexity] Fetching financial data for ${ticker}, metric: ${metric}`);
-    
+
     // Create a very specific query optimized for numerical responses
     const query = `You are a financial data API that only returns numbers. 
     What is the exact numerical value for the ${metric} of ${ticker} stock?
     Respond with ONLY the numerical value, no text, symbols, or explanation.
     Example response: 15.7`;
-    
+
     // Make the API request using one of the official Perplexity models
     const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -396,44 +399,38 @@ apiRouter.get('/perplexity-financial', async (req, res) => {
             role: 'system',
             content: 'You are a financial data API that only returns numbers. Never include any text, just the numerical value.'
           },
-          { 
-            role: 'user', 
-            content: query 
+          {
+            role: 'user',
+            content: query
           }
         ],
         temperature: 0.1,
         max_tokens: 30  // Limiting for efficiency
       })
     });
-    
+
     // Better error handling
     if (!perplexityResponse.ok) {
       const errorText = await perplexityResponse.text().catch(() => 'Failed to get error details');
       console.error(`[Perplexity] Error: ${perplexityResponse.status} ${perplexityResponse.statusText}`);
       console.error(`[Perplexity] Error details: ${errorText}`);
-      
       // If we get rate limited, let the client know
       if (perplexityResponse.status === 429) {
         return res.status(429).json({ error: 'Rate limit exceeded for Perplexity API' });
       }
-      
       return res.status(500).json({ error: 'Failed to fetch data from Perplexity' });
     }
-    
     try {
       const data = await perplexityResponse.json();
       console.log(`[Perplexity] Raw response:`, data);
-      
       if (data.choices && data.choices[0] && data.choices[0].message) {
         const value = data.choices[0].message.content.trim();
         console.log(`[Perplexity] Raw value: "${value}"`);
-        
         // Try multiple approaches to extract a number
         // 1. First check if the entire response is just a number
         if (!isNaN(parseFloat(value)) && isFinite(value)) {
           return res.json({ metric, value: parseFloat(value).toString() });
         }
-        
         // 2. Try to extract numbers using regex
         const numMatch = value.match(/\d+([,.]\d+)?/g);
         if (numMatch && numMatch.length > 0) {
@@ -441,7 +438,6 @@ apiRouter.get('/perplexity-financial', async (req, res) => {
           const cleanNumber = numMatch[0].replace(/,/g, '');
           return res.json({ metric, value: cleanNumber });
         }
-        
         // 3. If no number found but we have text, return it
         return res.json({ metric, value });
       } else {
@@ -497,6 +493,9 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+

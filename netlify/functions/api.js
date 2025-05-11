@@ -1,27 +1,7 @@
-require('dotenv').config();
-const express = require('express');
 const serverless = require('serverless-http');
-const fetch = require('node-fetch');
-const path = require('path');
+const app = require('../../server');
 
-const app = express();
-const apiRouter = express.Router();
-
-// Parse JSON request bodies
-app.use(express.json());
-
-// API keys from environment variables
-const FMP_API_KEY = process.env.FMP_API_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
-
-// Validate all API keys are present
-if (!FMP_API_KEY) console.warn('Warning: FMP_API_KEY is not configured');
-if (!OPENAI_API_KEY) console.warn('Warning: OPENAI_API_KEY is not configured');
-if (!PERPLEXITY_API_KEY) console.warn('Warning: PERPLEXITY_API_KEY is not configured');
-
-// Income Statement endpoint
-apiRouter.get('/income-statement', async (req, res) => {
+exports.handler = serverless(app);
   const ticker = req.query.ticker;
   if (!ticker) return res.status(400).json({ error: 'Ticker is required' });
   
@@ -177,4 +157,7 @@ apiRouter.post('/feature-request', async (req, res) => {
 app.use('/.netlify/functions/api', apiRouter);
 
 // Export the serverless function
-module.exports.handler = serverless(app);
+const serverless = require('serverless-http');
+const app = require('../../server');
+
+exports.handler = serverless(app);
