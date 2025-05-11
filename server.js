@@ -380,10 +380,7 @@ apiRouter.get('/perplexity-financial', async (req, res) => {
     console.log(`[Perplexity] Fetching financial data for ${ticker}, metric: ${metric}`);
 
     // Create a very specific query optimized for numerical responses
-    const query = `You are a financial data API that only returns numbers. 
-    What is the exact numerical value for the ${metric} of ${ticker} stock?
-    Respond with ONLY the numerical value, no text, symbols, or explanation.
-    Example response: 15.7`;
+    const query = `You are a financial data API that only returns numbers. What is the exact numerical value for the ${metric} of ${ticker} stock? Respond with ONLY the numerical value, no text, symbols, or explanation. Example response: 15.7`;
 
     // Make the API request using one of the official Perplexity models
     const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
