@@ -74,6 +74,58 @@ document.getElementById('submit').addEventListener('click', async () => {
       if (window.renderCompetitorsWidget) {
         renderCompetitorsWidget(ticker);
       }
+      // Populate the competitor charts bar with up to 4 competitors
+      window.updateCompetitorChartsBar = async function (ticker) {
+        const bar = document.getElementById('competitor-charts-list');
+        if (!bar) return;
+        bar.innerHTML = '<span style="color:#888;">Loading...</span>';
+        try {
+          const resp = await fetch(`/api/competitors?ticker=${encodeURIComponent(ticker)}`);
+          if (!resp.ok) throw new Error('Failed to fetch competitors');
+          const peers = await resp.json();
+          if (!Array.isArray(peers) || peers.length === 0) {
+            bar.innerHTML = '<span style="color:#888;">No competitors</span>';
+            return;
+          }
+          // Only show top 4
+          const topPeers = peers.slice(0, 4);
+          bar.innerHTML = '';
+          topPeers.forEach((peer, i) => {
+            const a = document.createElement('a');
+            a.textContent = peer.symbol;
+            a.href = '#';
+            a.setAttribute('data-symbol', peer.symbol);
+            a.style.color = '#4cc9f0';
+            a.style.fontWeight = '600';
+            a.style.marginRight = '10px';
+            a.style.textDecoration = 'underline';
+            a.addEventListener('click', function(e) {
+              e.preventDefault();
+              // Set ticker input and trigger chart load
+              const tickerInput = document.getElementById('ticker');
+              if (tickerInput) tickerInput.value = peer.symbol;
+              const submitBtn = document.getElementById('submit');
+              if (submitBtn) submitBtn.click();
+            });
+            bar.appendChild(a);
+            if (i < topPeers.length - 1) {
+              const sep = document.createElement('span');
+              sep.textContent = '|';
+              sep.style.color = '#888';
+              sep.style.margin = '0 6px';
+              bar.appendChild(sep);
+            }
+          });
+        } catch (err) {
+          bar.innerHTML = '<span style="color:#888;">Error loading competitors</span>';
+        }
+      };
+
+      // On first chart load, also populate competitor bar
+      if (window.defaultTicker) {
+        window.updateCompetitorChartsBar(window.defaultTicker);
+      }
+      updateCompetitorChartsBar(ticker);
       if (window.renderValuationWidget) {
         renderValuationWidget(ticker);
       }

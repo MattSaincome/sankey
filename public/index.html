@@ -804,9 +804,13 @@
       <div id="visualization">
         <div id="d3-chart"></div>
       </div>
-      <div class="chart-actions">
+      <div class="chart-actions" data-component-name="<div />">
         <button id="copy-screenshot" style="font-size:0.9em;padding:0.3em 0.7em;margin-right:8px;">Copy Chart</button>
         <button id="download-chart" style="font-size:0.9em;padding:0.3em 0.7em;">Download Chart</button>
+        <div id="competitor-charts-bar" style="display: flex; align-items: center; margin-left: 24px; gap: 10px;">
+          <span style="font-weight: 500; color: #eceff4; margin-right: 8px;">View Competitor Charts:</span>
+          <span id="competitor-charts-list"></span>
+        </div>
       </div>
     </div>
     <div class="dashboard-widget dashboard-widget--full" id="value-bot-widget-full">
