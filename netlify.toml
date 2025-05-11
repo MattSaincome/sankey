@@ -1,18 +1,20 @@
 [build]
-  command = "npm install"
-  publish = "."
+  command = "npm install" # We can review this later if needed
+  publish = "public"
   functions = "netlify/functions"
 
 [dev]
-  command = "npm start"
-  port = 3000
-  targetPort = 3000
+  port = 8888
+  publish = "public" # Serve static files from the public directory
+  # jwtRolePath = "netlify-jwt" # Optional: if using Netlify Identity JWTs
+  # functionsPort = 34567 # Optional: port for Netlify Functions, usually auto-assigned
 
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
 
+# This rule must be last to catch all other routes for SPA handling
 [[redirects]]
   from = "/*"
   to = "/index.html"

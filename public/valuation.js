@@ -90,13 +90,14 @@ async function renderValuationWidget(ticker) {
     }
     
     // Helper to fetch metric from Perplexity when not available from FMP
-    async function fetchFromPerplexity(metricName, ticker) {
+    async function fetchFromPerplexity(metricNameOrQuery) { // Renamed and only one param now
       try {
-        console.log(`[valuation.js] Requesting Perplexity for ${metricName} of ${ticker}`);
-        const response = await fetch(`/api/perplexity-financial?ticker=${ticker}&metric=${encodeURIComponent(metricName)}`);
+        // The metricNameOrQuery now contains the full query string including ticker/company name
+        console.log(`[valuation.js] Requesting Perplexity for: ${metricNameOrQuery}`);
+        const response = await fetch(`/api/perplexity-financial?metric=${encodeURIComponent(metricNameOrQuery)}`); // Removed ticker from here
         
         if (!response.ok) {
-          console.error(`[valuation.js] Perplexity API returned status ${response.status}`);
+          console.error(`[valuation.js] Perplexity API returned status ${response.status} for query: ${metricNameOrQuery}`);
           return null;
         }
         
@@ -127,7 +128,7 @@ async function renderValuationWidget(ticker) {
         
         return null;
       } catch (err) {
-        console.error(`[valuation.js] Error fetching ${metricName} from Perplexity:`, err);
+        console.error(`[valuation.js] Error fetching ${metricNameOrQuery} from Perplexity:`, err);
         return null;
       }
     }
@@ -218,62 +219,65 @@ async function renderValuationWidget(ticker) {
     const fetchAllMissingMetrics = async () => {
       console.log('[valuation.js] Fetching all missing metrics from Perplexity for ' + ticker);
       
+      // Attempt to get a more descriptive name for the Perplexity query
+      const companyQueryName = (profile && profile[0] && profile[0].companyName) ? `${profile[0].companyName} (${ticker})` : `${ticker} stock`;
+
       // Define all metrics that might need Perplexity fallback, with proper query formatting
       const metricDefinitions = {
         earningsYield: {
           value: earningsYield,
-          query: `earnings yield percentage for ${ticker} stock`,
-          formatter: val => val + '%'
+          query: `earnings yield percentage for ${companyQueryName}`,
+          formatter: val => !isNaN(parseFloat(val)) ? parseFloat(val).toFixed(2) + '%' : '--' // Expect a number
         },
         evEbit: {
           value: evEbit,
-          query: `enterprise value to EBIT ratio for ${ticker} stock`,
-          formatter: val => val
+          query: `enterprise value to EBIT ratio for ${companyQueryName}`,
+          formatter: val => !isNaN(parseFloat(val)) ? parseFloat(val).toFixed(2) : '--' // Expect a number
         },
         fcfYield: {
           value: fcfYield,
-          query: `free cash flow yield percentage for ${ticker} stock`,
-          formatter: val => val + '%'
+          query: `free cash flow yield percentage for ${companyQueryName}`,
+          formatter: val => !isNaN(parseFloat(val)) ? parseFloat(val).toFixed(2) + '%' : '--' // Expect a number
         },
         fwdPe: {
           value: fwdPe,
-          query: `forward price to earnings ratio for ${ticker} stock`,
-          formatter: val => val
+          query: `forward price to earnings ratio for ${companyQueryName}`,
+          formatter: val => !isNaN(parseFloat(val)) ? parseFloat(val).toFixed(2) : '--' // Expect a number
         },
         currentRatio: {
           value: currentRatio,
-          query: `current ratio for ${ticker} stock`,
-          formatter: val => val
+          query: `current ratio for ${companyQueryName}`,
+          formatter: val => !isNaN(parseFloat(val)) ? parseFloat(val).toFixed(2) : '--' // Expect a number
         },
         interestCoverage: {
           value: interestCoverage,
-          query: `interest coverage ratio for ${ticker} stock`,
-          formatter: val => val
+          query: `interest coverage ratio for ${companyQueryName}`,
+          formatter: val => !isNaN(parseFloat(val)) ? parseFloat(val).toFixed(2) : '--' // Expect a number
         },
         peg: {
           value: peg,
-          query: `PEG ratio for ${ticker} stock`,
-          formatter: val => val
+          query: `PEG ratio for ${companyQueryName}`,
+          formatter: val => !isNaN(parseFloat(val)) ? parseFloat(val).toFixed(2) : '--' // Expect a number
         },
         roe: {
           value: roe,
-          query: `return on equity percentage for ${ticker} stock`,
-          formatter: val => val + '%'
+          query: `return on equity percentage for ${companyQueryName}`,
+          formatter: val => !isNaN(parseFloat(val)) ? parseFloat(val).toFixed(2) + '%' : '--' // Expect a number
         },
         roic: {
           value: roic,
-          query: `return on invested capital percentage for ${ticker} stock`,
-          formatter: val => val + '%'
+          query: `return on invested capital percentage for ${companyQueryName}`,
+          formatter: val => !isNaN(parseFloat(val)) ? parseFloat(val).toFixed(2) + '%' : '--' // Expect a number
         },
         profitMargin: {
           value: profitMargin,
-          query: `profit margin percentage for ${ticker} stock`,
-          formatter: val => val + '%'
+          query: `profit margin percentage for ${companyQueryName}`,
+          formatter: val => !isNaN(parseFloat(val)) ? parseFloat(val).toFixed(2) + '%' : '--' // Expect a number
         },
-        operatingMargin: {
+        operatingMargin: { 
           value: operatingMargin, 
-          query: `operating margin percentage for ${ticker} stock`,
-          formatter: val => val + '%'
+          query: `operating margin percentage for ${companyQueryName}`,
+          formatter: val => !isNaN(parseFloat(val)) ? parseFloat(val).toFixed(2) + '%' : '--' // Expect a number
         }
       };
       
@@ -302,11 +306,13 @@ async function renderValuationWidget(ticker) {
         
         const batchResults = await Promise.all(batch.map(async metric => {
           try {
-            const value = await fetchFromPerplexity(metric.query, ticker);
+            // Pass only metric.query, which is self-contained now
+            const value = await fetchFromPerplexity(metric.query);
             console.log(`[valuation.js] Perplexity returned for ${metric.name}: ${value}`);
+            // Apply formatter which now also handles non-numeric conversion to '--'
             return { 
               name: metric.name, 
-              value: value ? metric.formatter(value) : '--'
+              value: value !== null ? metric.formatter(value) : '--' // Ensure null from fetchFromPerplexity becomes '--'
             };
           } catch (err) {
             console.error(`[valuation.js] Error fetching ${metric.name}:`, err);
@@ -431,12 +437,12 @@ async function renderValuationWidget(ticker) {
 
     // If any DCF metrics are still missing, try to get them from Perplexity
     if (dcfWACC === '--') {
-      const perplexityWACC = await fetchFromPerplexity(`weighted average cost of capital (WACC) percentage for ${ticker} stock`, ticker);
+      const perplexityWACC = await fetchFromPerplexity(`weighted average cost of capital (WACC) percentage for ${ticker} stock`);
       if (perplexityWACC) dcfWACC = perplexityWACC + '%';
     }
     
     if (dcfGrowthRate === '--') {
-      const perplexityGrowth = await fetchFromPerplexity(`long-term growth rate percentage for ${ticker} stock DCF model`, ticker);
+      const perplexityGrowth = await fetchFromPerplexity(`long-term growth rate percentage for ${ticker} stock DCF model`);
       if (perplexityGrowth) dcfGrowthRate = perplexityGrowth + '%';
     }
     

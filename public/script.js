@@ -114,27 +114,57 @@ function createLoadingElement() {
 
 async function renderSankey(data, ticker) {
   console.log('DEBUG: renderSankey data =>', data);
-  hideSegmentationError();
-  // fetch segmentation and prepare sankey data
+  hideSegmentationError(); // Clear previous errors
+
+  // --- Fetch Growth Data (YoY from Annual Statements) ---
+  let growthData = {};
+  try {
+    const annualIncomeRes = await fetch(`/api/fmp-proxy/data?endpoint=income-statement&symbol=${ticker}&period=annual&limit=3`);
+    if (annualIncomeRes.ok) {
+      const annualStatements = await annualIncomeRes.json();
+      console.log('DEBUG: Annual income statements for YoY calc:', annualStatements);
+      if (annualStatements && annualStatements.length >= 2) {
+        const y0 = annualStatements[0]; // Most recent year
+        const y1 = annualStatements[1]; // Prior year
+
+        const calculateGrowth = (current, previous) => {
+          if (previous === 0 || previous == null) {
+            return (current != null && current !== 0) ? null : 0; // Or handle as 'New' or Infinity if current > 0
+          }
+          if (current == null || previous == null) return null;
+          return (current - previous) / Math.abs(previous);
+        };
+
+        growthData = {
+          growthRevenue: calculateGrowth(y0.revenue, y1.revenue),
+          growthCostOfRevenue: calculateGrowth(y0.costOfRevenue, y1.costOfRevenue),
+          growthGrossProfit: calculateGrowth(y0.grossProfit, y1.grossProfit),
+          growthResearchAndDevelopmentExpenses: calculateGrowth(y0.researchAndDevelopmentExpenses, y1.researchAndDevelopmentExpenses),
+          growthSellingGeneralAndAdministrativeExpenses: calculateGrowth(y0.sellingGeneralAndAdministrativeExpenses, y1.sellingGeneralAndAdministrativeExpenses),
+          growthOperatingExpenses: calculateGrowth(y0.operatingExpenses, y1.operatingExpenses),
+          growthOperatingIncome: calculateGrowth(y0.operatingIncome, y1.operatingIncome),
+          growthInterestExpense: calculateGrowth(y0.interestExpense, y1.interestExpense),
+          growthIncomeTaxExpense: calculateGrowth(y0.incomeTaxExpense, y1.incomeTaxExpense),
+          growthNetIncome: calculateGrowth(y0.netIncome, y1.netIncome),
+          growthDepreciationAndAmortization: calculateGrowth(y0.depreciationAndAmortization, y1.depreciationAndAmortization),
+          // Add any other specific growth metrics needed by growthKeyMap
+        };
+      } else {
+        console.warn('Not enough annual statements (need at least 2) to calculate YoY growth.');
+      }
+    }
+    console.log('DEBUG: Manually calculated Growth data:', growthData);
+  } catch (err) {
+    console.error('Error fetching or calculating annual growth data:', err);
+    // Fallback to an empty object, so chart still renders without YoY if this fails
+    growthData = {}; 
+  }
+
+  // --- Fetch Revenue Segmentation Data ---
   let segments = [];
   // We no longer need to make a separate API call since detailed expenses
   // are now included in the main income statement response
   const detailedExpenses = data.expenses;
-
-  // --- FETCH GROWTH DATA (YoY) ---
-  let growthData = null;
-  try {
-    const growthResponse = await fetch(`/api/income-statement-growth?ticker=${encodeURIComponent(ticker)}`);
-    if (growthResponse.ok) {
-      growthData = await growthResponse.json();
-      console.log('DEBUG: Growth data received:', growthData);
-    } else {
-      console.warn('Growth data not available:', await growthResponse.text());
-    }
-  } catch (err) {
-    console.warn('Growth fetch error:', err);
-    // Non-fatal, continue without growth data
-  }
 
   try {
     const segResponse = await fetch(`/api/revenue-segmentation?ticker=${ticker}`);

@@ -523,6 +523,12 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
     };
     const {nodes, links: layoutLinks} = sankey({...sankeyData});
 
+    // Define segmentNodes based on layoutNodes and the input segments data
+    // This is used to correctly identify nodes that are segments.
+    const segmentNodes = segments && segments.length > 0
+      ? nodes.filter(node => segments.some(s => s.segment === node.name))
+      : [];
+
     // Align Cost of Revenue detail nodes under Operating Expenses column
     const opExpNode = nodes.find(n => n.name === 'Operating Expenses');
     if (opExpNode) {
@@ -1443,9 +1449,14 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
     // For segment-to-Revenue links, show only one YoY label per segment, centered in the segment node, vertically spaced
     if (segments && segments.length) {
       // Calculate vertical spacing and font size for dense segments
-      const segNodes = layoutLinks.filter(l => l.target === nodes.find(n => n.name === 'Revenue') && l.source && l.source.x0 < nodes.find(n => n.name === 'Revenue').x0);
-      const segmentNodesOrdered = segNodes.map(l => l.source).sort((a, b) => a.y0 - b.y0);
-      const totalSegs = segmentNodesOrdered.length;
+      const segmentLinkSources = layoutLinks.filter(l => 
+        l.target.name === 'Revenue' && 
+        l.source && 
+        l.source.x0 < l.target.x0 && 
+        segmentNodes.some(sn => sn.name === l.source.name) // Ensure the source is a known segment
+      ).map(l => l.source).sort((a, b) => a.y0 - b.y0);
+
+      const totalSegs = segmentLinkSources.length;
       const nodeHeight = nodes.find(n => n.name === 'Revenue').y1 - nodes.find(n => n.name === 'Revenue').y0;
       // Minimum spacing and font size
       let minSpacing = 18;
@@ -1456,7 +1467,7 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
       // Prepare label positions for collision avoidance
       const labelPos = [];
       chartGroup.selectAll('text.yoy-label-segment')
-        .data(segmentNodesOrdered)
+        .data(segmentLinkSources) // Use segmentLinkSources for this specific labeling
         .join('text')
         .attr('class', 'yoy-label yoy-label-segment')
         .attr('x', d => d.x1 + 8)
@@ -1497,61 +1508,41 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
         .attr('y', (d, i) => d._labelY || (d.y0 + d.y1) / 2);
     }
     // For all other links, show YoY label at link center, but only one per link
-    chartGroup.selectAll('text.yoy-label-general')
-      .data(layoutLinks.filter(link => {
-        if (!link || !link.source || !link.target) return false;
-        // Exclude segment-to-revenue links (handled above)
-        if (segments && segments.length && link.target.name === 'Revenue' && segments.some(s => s.segment === link.source.name)) {
-          return false;
-        }
-        return typeof growthKeyMap !== 'undefined' && growthKeyMap[link.target.name] && growthData && growthData[growthKeyMap[link.target.name]] != null;
-      }))
-      .join('text')
-      .attr('class', 'yoy-label yoy-label-general')
-      .attr('x', d => d && d.source && d.target ? getLinkRibbonCenter(d)[0] : 0)
-      .attr('y', d => d && d.source && d.target ? getLinkRibbonCenter(d)[1] : 0)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', '12px') // Changed from 14px to 12px
-      .attr('fill', '#999') // Changed from #222 to #999
-      .attr('font-weight', 400) // Changed from 700 to 400
-      .style('opacity', 0.6) // Added opacity
-      .text(d => {
-        const key = growthKeyMap[d.target.name];
-        let val = growthData[key];
-        if (val == null || isNaN(val)) return '';
-        if (Math.abs(val) < 1) val = val * 100;
-        return (val > 0 ? '+' : '') + val.toFixed(1) + '% YoY';
-      });
-    chartGroup.selectAll('text.yoy-label-foreground').data(layoutLinks.filter(link => {
+    chartGroup.selectAll('text.yoy-label-general').data(layoutLinks.filter(link => {
       if (!link || !link.source || !link.target) return false;
+
+      // If revenue segments are present and this link targets 'Revenue'
       if (segments && segments.length && link.target.name === 'Revenue') {
-        const seg = segments.find(s => s.segment === link.source.name);
-        return seg && typeof seg.yoy === 'number';
+        // Check if the source of this link is one of the defined segment nodes.
+        const isSegmentSource = segmentNodes.some(segmentNode => segmentNode.name === link.source.name);
+        if (isSegmentSource) {
+          return false; // Exclude: Handled by yoy-label-segment (the white ones)
+        }
       }
-      return typeof growthKeyMap !== 'undefined' && growthKeyMap[link.target.name] && growthData && growthData[growthKeyMap[link.target.name]] != null;
+
+      // For all other links, check if they have YoY growth data
+      // Use the parameter 'link' from the filter function, not a global 'link' variable
+      const hasGrowthData = typeof growthKeyMap !== 'undefined' && 
+                            link.target && growthKeyMap[link.target.name] && 
+                            growthData && 
+                            growthData[growthKeyMap[link.target.name]] != null;
+      return hasGrowthData;
     }))
       .join('text')
-      .attr('class', 'yoy-label-foreground')
+      .attr('class', 'yoy-label yoy-label-general') 
       .attr('x', d => d && d.source && d.target ? getLinkRibbonCenter(d)[0] : 0)
       .attr('y', d => d && d.source && d.target ? getLinkRibbonCenter(d)[1] : 0)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '12px') // Changed from 14px to 12px
-      .attr('fill', '#999') // Changed from #222 to #999
-      .attr('font-weight', 400) // Changed from 700 to 400
-      .style('opacity', 0.6) // Added opacity
+      .attr('font-size', '12px')
+      .attr('fill', '#999') 
+      .attr('font-weight', 400) 
+      .style('opacity', 0.6) 
       .text(d => {
-        if (!d || !d.source || !d.target) return '';
-        if (segments && segments.length && d.target.name === 'Revenue') {
-          const seg = segments.find(s => s.segment === link.source.name);
-          if (seg && typeof seg.yoy === 'number') {
-            return (seg.yoy > 0 ? '+' : '') + seg.yoy.toFixed(1) + '% YoY';
-          }
-        }
-        const key = growthKeyMap[d.target.name];
-        let val = growthData[key];
-        if (val == null || isNaN(val)) return '';
-        if (Math.abs(val) < 1) val = val * 100;
-        return (val > 0 ? '+' : '') + val.toFixed(1) + '% YoY';
+        const targetKey = growthKeyMap[d.target.name];
+        const yoyDecimal = growthData[targetKey]; // Assuming this is like 0.05 for 5%
+        if (yoyDecimal == null || isNaN(yoyDecimal)) return '';
+        const yoyPercent = yoyDecimal * 100;
+        return (yoyPercent > 0 ? '+' : '') + yoyPercent.toFixed(1) + '% YoY';
       });
 
     // If no segments, do not render segment nodes/links or segment YoY labels
@@ -1585,13 +1576,18 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
     // Node tooltips
     chartGroup.selectAll('.node rect, .node text, .nodelabel, .nodelabel-value, .nodelabel-margin')
       .on('mouseover', function(evt, d) {
-        const name = d.name || d;
-        let val = typeof d.value === 'number' ? formatDollars(d.value) : '';
+        // Ensure d is not null or undefined before accessing properties
+        if (!d) return;
+        
+        const name = (d && d.name) ? d.name : (typeof d === 'string' ? d : 'Unknown');
+        let val = (d && typeof d.value === 'number') ? formatDollars(d.value) : '';
         let margin = '';
-        if (growthKeyMap[name] && growthData[growthKeyMap[name]] != null) {
+        
+        if (name && growthKeyMap && growthData && growthKeyMap[name] && growthData[growthKeyMap[name]] != null) {
           const yoy = growthData[growthKeyMap[name]];
           margin = `<br><span style='color:#3cb371'>YoY: ${(yoy > 0 ? '+' : '') + (yoy * 100).toFixed(1)}%</span>`;
         }
+        
         showTooltip(`<b>${name}</b><br>${val}${margin}`, evt);
       })
       .on('mousemove', function(evt) { tooltip.style('left', (evt.pageX + 18) + 'px').style('top', (evt.pageY - 6) + 'px'); })
@@ -1600,13 +1596,19 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
     // Link tooltips
     chartGroup.selectAll('path.sankey-link, .link-label')
       .on('mouseover', function(evt, d) {
-        const src = d.source.name, tgt = d.target.name;
-        let val = formatDollars(d.value);
+        // Ensure d and its properties are not null or undefined
+        if (!d || !d.source || !d.target) return;
+        
+        const src = d.source.name || 'Unknown';
+        const tgt = d.target.name || 'Unknown';
+        let val = typeof d.value === 'number' ? formatDollars(d.value) : '';
         let margin = '';
-        if (growthKeyMap[tgt] && growthData[growthKeyMap[tgt]] != null) {
+        
+        if (tgt && growthKeyMap && growthData && growthKeyMap[tgt] && growthData[growthKeyMap[tgt]] != null) {
           const yoy = growthData[growthKeyMap[tgt]];
           margin = `<br><span style='color:#3cb371'>YoY: ${(yoy > 0 ? '+' : '') + (yoy * 100).toFixed(1)}%</span>`;
         }
+        
         showTooltip(`<b>${src} → ${tgt}</b><br>${val}${margin}`, evt);
       })
       .on('mousemove', function(evt) { tooltip.style('left', (evt.pageX + 18) + 'px').style('top', (evt.pageY - 6) + 'px'); })

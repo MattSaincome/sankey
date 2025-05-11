@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <!-- Enforce HTTPS and HSTS for security -->
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains; preload">
+
   <meta charset="utf-8" />
   <title>Income Statement Sankey Chart</title>
   <style>
@@ -228,6 +232,27 @@
       }
     }
     /* Value Investor Bot chat styles */
+    .loading-dots {
+      display: inline-block;
+      font-size: 1.5em;
+      letter-spacing: 2px;
+      animation: loading-bounce 1.2s infinite;
+    }
+    .loading-dots span {
+      opacity: 0.4;
+      animation: loading-fade 1.2s infinite;
+    }
+    .loading-dots span:nth-child(1) { animation-delay: 0s; }
+    .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes loading-fade {
+      0%, 80%, 100% { opacity: 0.4; }
+      40% { opacity: 1; }
+    }
+    @keyframes loading-bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
     .value-bot-chat {
       display: flex;
       flex-direction: column;
@@ -273,11 +298,13 @@
       width: 100%;
     }
     .value-bot-message.bot {
+      position: relative;
       align-self: flex-start;
       background: #23242a;
       color: #eceff4;
       width: 100%;
     }
+
     .value-bot-form {
       display: flex;
       gap: 8px;
@@ -1115,29 +1142,86 @@
       appendBotMessage(botInput.value.trim(), 'user');
       botInput.value = '';
       botInput.disabled = true;
-      // Show loading indicator
-      appendBotMessage('...', 'bot');
+      // Show loading indicator (animated)
+      const loadingMsg = document.createElement('div');
+      loadingMsg.className = 'value-bot-message bot loading-indicator';
+      loadingMsg.innerHTML = '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>';
+      botMessagesDiv.appendChild(loadingMsg);
+      botMessagesDiv.scrollTop = botMessagesDiv.scrollHeight;
+      console.log('[Investor Bot] Starting API call at:', new Date().toISOString());
+      console.log('[Investor Bot] Message length:', userMsg.length);
+      console.log('[Investor Bot] History items:', botHistory.length);
+      
       try {
+        const requestStart = Date.now();
+        console.log('[Investor Bot] Sending request to server...');
+        
         const res = await fetch('/api/value-investor-bot', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Request-Time': new Date().toISOString()
+          },
           body: JSON.stringify({ message: userMsg, history: botHistory })
         });
+        
+        const requestDuration = Date.now() - requestStart;
+        console.log('[Investor Bot] Request completed in:', requestDuration, 'ms');
+        console.log('[Investor Bot] Response status:', res.status);
+        console.log('[Investor Bot] Response headers:', [...res.headers.entries()]);
+        
         // Remove loading indicator
-        const loadingMsg = botMessagesDiv.querySelector('.value-bot-message.bot:last-child');
-        if (loadingMsg && loadingMsg.textContent === '...') loadingMsg.remove();
+        const loadingMsg = botMessagesDiv.querySelector('.value-bot-message.bot.loading-indicator');
+        if (loadingMsg) loadingMsg.remove();
+        
         if (res.ok) {
+          console.log('[Investor Bot] Response OK, parsing JSON...');
           const data = await res.json();
-          appendBotMessage(data.reply, 'bot');
-          botHistory.push({ role: 'user', content: userMsg });
-          botHistory.push({ role: 'assistant', content: data.reply });
+          console.log('[Investor Bot] Response parsed successfully');
+          console.log('[Investor Bot] Full response data:', data);
+          
+          // Check for either 'reply' or 'answer' property (the server might return either)
+          // The 'answer' property appears to be what's actually coming back from the server
+          const botResponse = data.reply || data.answer || null;
+          
+          console.log('[Investor Bot] Bot response found:', !!botResponse);
+          console.log('[Investor Bot] Response length:', botResponse ? botResponse.length : 0);
+          console.log('[Investor Bot] Error present:', !!data.error);
+          
+          if (botResponse) {
+            // We have a response (either reply or answer) to show to the user
+            appendBotMessage(botResponse, 'bot');
+            botHistory.push({ role: 'user', content: userMsg });
+            botHistory.push({ role: 'assistant', content: botResponse });
+            
+            // If there was also an error, log it but we still showed the friendly message
+            if (data.error) {
+              console.warn('[Investor Bot] Server reported error:', data.error);
+              // Don't add error messages to history - only actual responses
+            }
+          } else {
+            // Neither reply nor answer property found - use a fallback message
+            console.error('[Investor Bot] No reply or answer in response:', data);
+            const fallbackMsg = "I'm currently having trouble analyzing this data. Please try again in a moment.";
+            appendBotMessage(fallbackMsg, 'bot');
+            // Don't add fallback messages to history
+          }
         } else {
-          appendBotMessage('Sorry, there was an error. Please try again.', 'bot');
+          console.error('[Investor Bot] Response error:', res.status, res.statusText);
+          try {
+            const errorData = await res.text();
+            console.error('[Investor Bot] Error details:', errorData);
+          } catch (parseError) {
+            console.error('[Investor Bot] Could not parse error response');
+          }
+          
+          const fallbackMsg = "I'm unable to connect to my analysis system right now. Please try again later.";
+          appendBotMessage(fallbackMsg, 'bot');
         }
       } catch (err) {
         // Remove loading indicator
-        const loadingMsg = botMessagesDiv.querySelector('.value-bot-message.bot:last-child');
-        if (loadingMsg && loadingMsg.textContent === '...') loadingMsg.remove();
+        const loadingMsg = botMessagesDiv.querySelector('.value-bot-message.bot.loading-indicator');
+        if (loadingMsg) loadingMsg.remove();
         appendBotMessage('Sorry, there was a network error.', 'bot');
       }
       botInput.disabled = false;

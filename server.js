@@ -17,13 +17,35 @@ module.exports = app;
 
 // Serve static assets from /public and project root
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Debug route for /data/* requests
+app.get('/data/:filename*', (req, res) => { 
+  console.log(`[DEBUG SERVER LOG] Request for /data path: ${req.path}`);
+  console.log(`[DEBUG SERVER LOG] Original URL: ${req.originalUrl}`);
+  console.log(`[DEBUG SERVER LOG] Referer: ${req.headers.referer || 'N/A'}`);
+  console.log(`[DEBUG SERVER LOG] User-Agent: ${req.headers['user-agent'] || 'N/A'}`);
+  res.status(404).send(`File ${req.path} not found (logged by server debug route for /data/*).`);
+});
+
 app.use(express.static(path.join(__dirname)));
 
 // Parse JSON request bodies
 app.use(express.json());
 
 // Mount the API router at /api
-app.use('/', apiRouter);
+app.use('/api', apiRouter);
+
+// Add a simple health check endpoint directly on the main app
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    netlify: !!process.env.NETLIFY,
+    openai_key_set: !!process.env.OPENAI_API_KEY,
+    serverless: req.headers['x-netlify-functions'] ? true : false
+  });
+});
 
 // Explicit route to serve the FirstLookStocks watermark image
 app.get('/firstlookstocks-watermark.png', (req, res) => {
@@ -313,7 +335,7 @@ apiRouter.get('/income-statement-growth', async (req, res) => {
     }
     const recent = quarterly.slice(0, 4);
     const prev = quarterly.slice(4, 8);
-    const sumField = (arr, field) => arr.reduce((s, item) => s + (item[field] || 0), 0);
+    const sumField = field => quarterly.reduce((sum, q) => sum + (q[field] || 0), 0);
     const computeGrowth = field => {
       const currSum = sumField(recent, field);
       const prevSum = sumField(prev, field);
@@ -353,44 +375,82 @@ apiRouter.post('/value-investor-bot', express.json(), async (req, res) => {
 
   // Compose messages array for OpenAI
   const messages = [
-    { role: 'system', content: `This GPT simulates Warren Buffett with comprehensive knowledge of everything Buffett has publicly written, said, or endorsed, including annual shareholder letters, interviews, speeches, and investing principles. It emulates Buffett's voice, mannerisms, and investment philosophy, especially focusing on long-term value investing, intrinsic value calculation, business quality, and management integrity. The GPT interprets stock information from a connected user-provided dataset, which includes company financials, metrics, and qualitative insights, and responds as Buffett would — conservatively, rationally, and with a long-term orientation.
+    { role: 'system', content: `This GPT simulates Warren Buffett with comprehensive knowledge of everything Buffett, Charlie Munger, and Benjamin Graham have publicly written, said, or endorsed—including annual shareholder letters, interviews, speeches, and investing principles. It emulates Buffett's voice, mannerisms, and investment philosophy, especially focusing on long-term value investing, intrinsic value calculation, business quality, and management integrity. The GPT interprets stock information from a connected user-provided dataset, which includes company financials, metrics, and qualitative insights, and responds as Buffett would—conservatively, rationally, and with a long-term orientation.
 
-**Be concise, frank, and direct—like a human trying to get a point across. Cut to the chase, avoid repetition, and don't sugarcoat. Favor short, punchy sentences.**
-// --- Place all API endpoints above this line ---
+You should:
+- Frequently enrich your answers with specific examples of what Buffett, Munger, or Graham look for (or avoid) in investments. For example, cite traits like durable competitive advantages ("moats"), consistent earnings, prudent capital allocation, or warning signs like high debt, erratic profits, or untrustworthy management.
+- Occasionally use famous quotes or anecdotes from Buffett, Munger, or Graham when directly relevant. For example: "Price is what you pay, value is what you get" or "It's far better to buy a wonderful company at a fair price than a fair company at a wonderful price."
+- Educate the user by illustrating concepts with simple, practical examples—such as how Buffett analyzed Coca-Cola, or why he avoids businesses he doesn't understand.
+- When appropriate, highlight both positive and negative signals in the data, and explain why Buffett (or Munger/Graham) would care about them.
+- Make responses accessible to beginners. Briefly explain value investing principles, and use examples of good and bad company traits to help the user learn.
+- Stay concise and focused on the user's query, but don't miss opportunities to enrich and educate.
 
-// This is a placeholder for the original perplexity-financial endpoint
-// Now implemented above
-
-// Perplexity API endpoint for retrieving financial metrics
-apiRouter.get('/perplexity-financial', async (req, res) => {
-  const ticker = req.query.ticker;
-  const metric = req.query.metric;
-  
-  if (!ticker || !metric) {
-    return res.status(400).json({ error: 'Both ticker and metric are required' });
-  }
-  
-  // Get Perplexity API key from environment variables
-  const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
-  if (!PERPLEXITY_API_KEY) {
-    return res.status(500).json({ error: 'Perplexity API key not configured.' });
+**Be concise, frank, and direct—like a human trying to get a point across. Cut to the chase, avoid repetition, and don't sugarcoat. Favor short, punchy sentences.` },
+    { role: 'user', content: userMessage }
+  ];
+  if (history.length > 0) {
+    messages.push(...history);
   }
 
   try {
-    console.log(`[Perplexity] Fetching financial data for ${ticker}, metric: ${metric}`);
-
-    // Create a very specific query optimized for numerical responses
-    const query = `You are a financial data API that only returns numbers. What is the exact numerical value for the ${metric} of ${ticker} stock? Respond with ONLY the numerical value, no text, symbols, or explanation. Example response: 15.7`;
-
-    // Make the API request using one of the official Perplexity models
-    const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'sonar',  // Using the official Perplexity model from their docs
+        model: 'gpt-3.5-turbo',
+        messages,
+        temperature: 0.7,
+        max_tokens: 2048
+      })
+    });
+
+    if (!response.ok) {
+      console.error('OpenAI error:', response.status, response.statusText);
+      return res.status(500).json({ error: 'Failed to fetch from OpenAI' });
+    }
+
+    const data = await response.json();
+    const answer = data.choices[0].message.content;
+    console.log('DEBUG: OpenAI response:', answer);
+    res.json({ answer });
+  } catch (err) {
+    console.error('OpenAI error:', err);
+    res.status(500).json({ error: 'Server error', message: err.message });
+  }
+});
+
+// Perplexity API endpoint for retrieving financial metrics
+const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
+const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
+
+apiRouter.get('/perplexity-financial', async (req, res) => {
+  // The full query string is now expected in the 'metric' parameter
+  const metricQuery = req.query.metric; 
+
+  console.log(`[Perplexity API Server] Received request for metricQuery: "${metricQuery}"`);
+
+  if (!metricQuery) {
+    console.error('[Perplexity API Server] Error: Metric query parameter is missing or empty.');
+    return res.status(400).json({ error: 'Metric query parameter is required and cannot be empty.' });
+  }
+  if (!PERPLEXITY_API_KEY) {
+    console.error('[Perplexity API Server] Error: PERPLEXITY_API_KEY is not configured.');
+  }
+
+  try {
+    console.log(`[Perplexity API Server] Sending to Perplexity AI: "${metricQuery}"`);
+    const perplexityResponse = await fetch(PERPLEXITY_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'sonar', // Using the specified model for financial data
         messages: [
           {
             role: 'system',
@@ -398,19 +458,17 @@ apiRouter.get('/perplexity-financial', async (req, res) => {
           },
           {
             role: 'user',
-            content: query
+            content: metricQuery // Use the full metricQuery here
           }
         ],
-        temperature: 0.1,
-        max_tokens: 30  // Limiting for efficiency
+        temperature: 0.1, // Low temperature for factual, less creative responses
       })
     });
 
-    // Better error handling
     if (!perplexityResponse.ok) {
       const errorText = await perplexityResponse.text().catch(() => 'Failed to get error details');
-      console.error(`[Perplexity] Error: ${perplexityResponse.status} ${perplexityResponse.statusText}`);
-      console.error(`[Perplexity] Error details: ${errorText}`);
+      console.error(`[Perplexity API Server] Error from Perplexity AI: ${perplexityResponse.status} ${perplexityResponse.statusText}`);
+      console.error(`[Perplexity API Server] Perplexity AI error details: ${errorText}`);
       // If we get rate limited, let the client know
       if (perplexityResponse.status === 429) {
         return res.status(429).json({ error: 'Rate limit exceeded for Perplexity API' });
@@ -419,34 +477,34 @@ apiRouter.get('/perplexity-financial', async (req, res) => {
     }
     try {
       const data = await perplexityResponse.json();
-      console.log(`[Perplexity] Raw response:`, data);
+      console.log('[Perplexity API Server] Raw response from Perplexity AI:', data);
       if (data.choices && data.choices[0] && data.choices[0].message) {
         const value = data.choices[0].message.content.trim();
-        console.log(`[Perplexity] Raw value: "${value}"`);
+        console.log(`[Perplexity API Server] Extracted value: "${value}" for query "${metricQuery}"`);
         // Try multiple approaches to extract a number
         // 1. First check if the entire response is just a number
         if (!isNaN(parseFloat(value)) && isFinite(value)) {
-          return res.json({ metric, value: parseFloat(value).toString() });
+          return res.json({ metric: metricQuery, value: parseFloat(value).toString() });
         }
         // 2. Try to extract numbers using regex
         const numMatch = value.match(/\d+([,.]\d+)?/g);
         if (numMatch && numMatch.length > 0) {
           // Remove commas and convert to standard number format
           const cleanNumber = numMatch[0].replace(/,/g, '');
-          return res.json({ metric, value: cleanNumber });
+          return res.json({ metric: metricQuery, value: cleanNumber });
         }
-        // 3. If no number found but we have text, return it
-        return res.json({ metric, value });
+        // 3. If no number found but we have text, return it (client will handle non-numeric)
+        return res.json({ metric: metricQuery, value });
       } else {
-        console.error('[Perplexity] Unexpected response format:', data);
-        return res.status(500).json({ error: 'Unexpected response format from Perplexity' });
+        console.error('[Perplexity API Server] Unexpected response format from Perplexity AI:', data);
+        return res.status(500).json({ error: 'Unexpected response format from Perplexity AI' });
       }
     } catch (parseError) {
-      console.error('[Perplexity] JSON parse error:', parseError);
-      return res.status(500).json({ error: 'Failed to parse Perplexity response' });
+      console.error('[Perplexity API Server] JSON parse error from Perplexity AI response:', parseError);
+      return res.status(500).json({ error: 'Failed to parse Perplexity AI response' });
     }
   } catch (err) {
-    console.error('[Perplexity] Error:', err);
+    console.error('[Perplexity API Server] General error in /perplexity-financial route:', err);
     return res.status(500).json({ error: 'Server error', message: err.message });
   }
 });
@@ -468,8 +526,8 @@ apiRouter.post('/feature-request', express.json(), async (req, res) => {
     }
     
     // Log the feature request (in a real application, this would be saved to a database)
-    console.log(`[Feature Request] New request from ${email}:`, {
-      featureRequest,
+    console.log('[Feature Request] New request from ' + email + ':', {
+      featureRequest: featureRequest,
       marketingConsent: !!marketingConsent,
       timestamp: new Date().toISOString()
     });
@@ -477,7 +535,7 @@ apiRouter.post('/feature-request', express.json(), async (req, res) => {
     // Return success response
     return res.status(200).json({ 
       success: true, 
-      message: 'Feature request received. Thank you for your feedback!' 
+      message: 'Feature request received. Thank you for your feedback!'
     });
   } catch (err) {
     console.error('[Feature Request] Error:', err);
@@ -485,14 +543,252 @@ apiRouter.post('/feature-request', express.json(), async (req, res) => {
   }
 });
 
-// Catch-all route - must be last
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+// Value Investor Bot endpoint (Warren Buffett AI analysis)
+apiRouter.post('/value-investor-bot', async (req, res) => {
+  console.log('[OpenAI] Value investor bot endpoint called');
+  console.log('[OpenAI] Request headers:', JSON.stringify(req.headers, null, 2));
+  console.log('[OpenAI] Request body size:', req.body ? JSON.stringify(req.body).length : 0, 'bytes');
+  console.log('[OpenAI] Request method:', req.method);
+  console.log('[OpenAI] Request path:', req.path);
+  console.log('[OpenAI] Environment:', process.env.NODE_ENV || 'development');
+  console.log('[OpenAI] Running in Netlify:', process.env.NETLIFY || 'No');
+  
+  // Get the OpenAI API key from environment variables with fallback options for different Netlify configurations
+  // Netlify might use different naming conventions depending on how variables were set
+  let OPENAI_API_KEY = process.env.OPENAI_API_KEY || 
+                     process.env.OPENAI_KEY || 
+                     process.env.VITE_OPENAI_API_KEY || 
+                     process.env.NEXT_PUBLIC_OPENAI_API_KEY || 
+                     process.env.REACT_APP_OPENAI_API_KEY || 
+                     ''; // Empty fallback for error handling
+  
+  // Check all environment variables for debugging
+  console.log('[OpenAI] Environment variables:', Object.keys(process.env).filter(key => 
+    !key.includes('API_KEY') && !key.includes('SECRET') && !key.includes('TOKEN') && !key.includes('PASSWORD')
+  ));
+  
+  // Try a hardcoded key as ABSOLUTE LAST RESORT
+  // This is only for local development and should be removed in production
+  if (!OPENAI_API_KEY && process.env.NODE_ENV === 'development') {
+    console.warn('[OpenAI] Using fallback API key for development only');
+    // DO NOT HARDCODE ACTUAL KEY HERE - this is just for checking if the fallback logic works
+    OPENAI_API_KEY = ''; // Leave empty, don't actually put a key here
+  }
+  
+  // For debugging only - DO NOT log the actual key
+  console.log('[OpenAI] API key present:', OPENAI_API_KEY ? 'Yes' : 'No');
+  console.log('[OpenAI] API key length:', OPENAI_API_KEY ? OPENAI_API_KEY.length : 0);
+  console.log('[OpenAI] API key format check:', OPENAI_API_KEY?.startsWith('sk-') ? 'Valid format' : 'Invalid format');
+  
+  // Check if OpenAI API key is configured
+  if (!OPENAI_API_KEY) {
+    console.error('[OpenAI] Error: API key not configured');
+    return res.status(500).json({ 
+      error: 'OpenAI API key not configured', 
+      message: 'Please set the OPENAI_API_KEY environment variable in your Netlify dashboard.',
+      reply: 'I apologize, but I cannot access the OpenAI service right now due to a configuration issue. Please check the server logs for more information.'
+    });
+  }
+
+  try {
+    // Get message and history from request
+    const { message, history = [] } = req.body;
+    
+    if (!message) {
+      console.error('[OpenAI] Error: No message provided');
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    console.log(`[OpenAI] Sending message to OpenAI: ${message.substring(0, 50)}...`);
+    console.log(`[OpenAI] Conversation history length: ${history.length}`);
+    
+    // Prepare system message that defines Warren Buffett's persona
+    const systemMessage = {
+      role: 'system',
+      content: `You are simulating Warren Buffett analyzing a specific company and its peers based on user-supplied data.
+      
+You have comprehensive knowledge of everything Buffett has publicly written, said, or endorsed, including annual shareholder letters, interviews, speeches, and investing principles. 
+
+Respond in Buffett's voice, mannerisms, and investment philosophy, focusing on:
+- Long-term value investing
+- Intrinsic value calculation
+- Business quality assessment
+- Management integrity evaluation
+
+For each answer, briefly (in 1-2 sentences) explain your value investing philosophy or reasoning behind your analysis, in a way that's educational but not verbose. The goal is to help the user understand why you think the way you do, without overwhelming them with detail.
+
+Communicate concisely, giving only the most essential information Warren Buffett would mention if reviewing a company's financials in person. 
+- Avoid fluff, emojis, or excessive explanation
+- Use clear, straightforward insights
+- Use folksy metaphors and anecdotes sparingly and only when truly illustrative
+- Focus on the specific company under analysis and its direct competitors
+- Avoid broad market commentary, speculation, or general investing advice
+- Do not engage in short-term trading commentary or technical analysis
+- Frame everything in terms of what Buffett would likely think or do based on the data provided
+
+IMPORTANT: You're a value investor bot analyzing the financial data presented in the application.`
+    };
+
+    // Create a conversation including the system message, history, and new user message
+    const messages = [
+      systemMessage,
+      ...history,
+      { role: 'user', content: message }
+    ];
+
+    console.log('[OpenAI] Preparing to call OpenAI API');
+    
+    // Increase timeout for Netlify functions from 10s to 25s
+    // This gives more headroom for cold starts and network latency
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.log('[OpenAI] Request timeout triggered after 25 seconds');
+      controller.abort();
+    }, 25000);
+
+    // Prepare request data with more robust error handling
+    // Optimize for speed and reliability in serverless environment
+    const requestBody = {
+      model: 'gpt-3.5-turbo-16k', // Fast model with larger context window to handle financial discussions
+      messages: messages.slice(-5), // Only send the last 5 messages to reduce payload size
+      temperature: 0.3,  // Lower temperature for more predictable responses
+      max_tokens: 300,   // Much shorter to ensure quick responses
+      presence_penalty: 0,
+      frequency_penalty: 0
+    };
+    
+    // Add a unique cache key to help OpenAI's caching mechanisms
+    const cacheKey = `cache-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    requestBody.user = cacheKey;
+    
+    // Log request details (but redact actual message content to reduce log size)
+    console.log('[OpenAI] Request model:', requestBody.model);
+    console.log('[OpenAI] Request messages count:', requestBody.messages.length);
+    console.log('[OpenAI] Request system prompt length:', requestBody.messages[0]?.content.length || 0);
+    console.log('[OpenAI] Request user message length:', requestBody.messages[requestBody.messages.length-1]?.content.length || 0);
+    
+    try {
+      console.log('[OpenAI] Sending request to OpenAI at:', new Date().toISOString());
+      
+      // Call OpenAI API with better error handling for Netlify serverless environment
+      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'User-Agent': 'FirstLookStocks/1.0',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+      
+      console.log('[OpenAI] Received response from OpenAI at:', new Date().toISOString());
+      console.log('[OpenAI] Response status:', openaiResponse.status);
+      console.log('[OpenAI] Response headers:', JSON.stringify(Object.fromEntries([...openaiResponse.headers.entries()]), null, 2));
+
+      // Clear the timeout
+      clearTimeout(timeoutId);
+
+      // Handle API response with friendly client-side messaging
+      if (!openaiResponse.ok) {
+        const errorText = await openaiResponse.text().catch(() => 'Failed to get error details');
+        console.error(`[OpenAI] Error response: ${openaiResponse.status} ${openaiResponse.statusText}`);
+        console.error(`[OpenAI] Error details: ${errorText}`);
+        
+        // Detailed error information for debugging but friendly messages for users
+        const errorDetails = {
+          timestamp: new Date().toISOString(),
+          status: openaiResponse.status,
+          statusText: openaiResponse.statusText,
+          details: errorText.substring(0, 200) // Truncate long error messages
+        };
+        
+        // Handle specific error codes with appropriate messages
+        if (openaiResponse.status === 429) {
+          console.error('[OpenAI] Rate limit exceeded');
+          return res.status(200).json({ 
+            reply: "I'm currently handling too many requests. Please try again in a moment while I catch my breath.",
+            error: 'rate_limit',
+            errorDetails
+          });
+        }
+        
+        if (openaiResponse.status === 401) {
+          console.error('[OpenAI] Authentication error');
+          return res.status(200).json({ 
+            reply: "I'm having trouble connecting to my analysis system. Please try again later.",
+            error: 'authentication',
+            errorDetails
+          });
+        }
+        
+        if (openaiResponse.status === 500 || openaiResponse.status === 503) {
+          console.error('[OpenAI] Service unavailable');
+          return res.status(200).json({ 
+            reply: "The Warren Buffett AI analysis system is temporarily unavailable. Please try again shortly.",
+            error: 'service_down',
+            errorDetails
+          });
+        }
+        
+        // Generic error with friendly message
+        return res.status(200).json({ 
+          reply: "I encountered an issue analyzing this data. Let's try again with a more specific question about the financials.",
+          error: 'api_error',
+          errorDetails
+        });
+      }
+
+      // Process successful response
+      const data = await openaiResponse.json();
+      console.log(`[OpenAI] Received response from OpenAI: ${data.choices?.[0]?.message?.content?.substring(0, 50)}...`);
+      
+      if (data.choices && data.choices[0] && data.choices[0].message) {
+        // Return with 'reply' property to match what the client expects
+        return res.json({ reply: data.choices[0].message.content });
+      } else {
+        console.error('[OpenAI] Unexpected response format:', JSON.stringify(data));
+        return res.status(500).json({ error: 'Unexpected response format from OpenAI.' });
+      }
+    } catch (fetchError) {
+      // Clear the timeout if it hasn't fired yet
+      clearTimeout(timeoutId);
+      
+      // Handle fetch errors specially - always return a reply for the client
+      if (fetchError.name === 'AbortError') {
+        console.error('[OpenAI] Request timed out');
+        return res.status(200).json({ 
+          reply: "I'm having trouble processing this request due to high demand. Please try asking a simpler question or try again later.",
+          error: 'timeout',
+          details: 'OpenAI API request timed out'
+        });
+      }
+      
+      console.error('[OpenAI] Fetch error:', fetchError);
+      return res.status(200).json({ 
+        reply: "I'm experiencing connectivity issues with my analysis system. Please try again in a moment.",
+        error: 'network_error',
+        message: fetchError.message 
+      });
+    }
+  } catch (err) {
+    console.error('[OpenAI] Unhandled error:', err);
+    return res.status(200).json({ 
+      reply: "Sorry, I encountered an unexpected issue while analyzing the financial data. Please try again with a different question.",
+      error: 'server_error',
+      message: err.message
+    });
+  }
 });
 
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+// Catch-all route - must be last
+apiRouter.all('*', (req, res) => {
+  return res.status(404).json({ error: 'Route not found' });
+});
+
+if (require.main === module && !process.env.NETLIFY_DEV) {
+  app.listen(PORT, function () {
+    console.log('Server running on http://localhost:' + PORT);
   });
 }
-
