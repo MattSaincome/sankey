@@ -8,6 +8,9 @@ const app = express();
 const apiRouter = express.Router();
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.FMP_API_KEY;
+if (!API_KEY) {
+  throw new Error('FMP_API_KEY is not set in environment variables.');
+}
 
 // Serve static assets from /public and project root
 app.use(express.static(path.join(__dirname, 'public')));
@@ -155,6 +158,9 @@ apiRouter.get('/income-statement', async (req, res) => {
 
 // --- Generic FMP Proxy API ---
 const FMP_API_KEY = process.env.FMP_API_KEY;
+if (!FMP_API_KEY) {
+  throw new Error('FMP_API_KEY is not set in environment variables.');
+}
 // Handle both /api/fmp-proxy and /api/fmp-proxy/data routes
 apiRouter.get(['/fmp-proxy', '/fmp-proxy/data'], async (req, res) => {
   console.log('[FMP Proxy] Query params:', req.query);
@@ -224,6 +230,9 @@ apiRouter.get(['/fmp-proxy', '/fmp-proxy/data'], async (req, res) => {
 
 // --- Competitors API Proxy ---
 const PEERS_API_KEY = process.env.FMP_API_KEY;
+if (!PEERS_API_KEY) {
+  throw new Error('FMP_API_KEY is not set in environment variables.');
+}
 apiRouter.get('/competitors', async (req, res) => {
   const ticker = req.query.ticker;
   if (!ticker) return res.status(400).json({ error: 'Ticker is required' });
