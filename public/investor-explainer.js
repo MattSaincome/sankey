@@ -66,18 +66,34 @@ const investorExplainer = {
   
   // Create and add explainer toggle to bot messages
   addExplainerTogglesToBotMessages: function() {
+    console.log('[Investor Explainer] Adding toggles to bot messages...');
     const botMessages = document.querySelectorAll('.value-bot-message.bot');
+    console.log('[Investor Explainer] Found', botMessages.length, 'bot messages');
     
-    botMessages.forEach(message => {
+    botMessages.forEach((message, index) => {
       // Skip if already has an explainer toggle
-      if (message.querySelector('.explainer-switch')) return;
+      if (message.querySelector('.explainer-switch')) {
+        console.log('[Investor Explainer] Message', index, 'already has toggle');
+        return;
+      }
+      
+      console.log('[Investor Explainer] Adding toggle to message', index);
+      
+      // Ensure the message has proper positioning for absolute elements
+      message.style.position = 'relative';
       
       // Create the toggle switch
       const toggleSwitch = this.createExplainerToggle();
       
+      // Make sure toggle is visible
+      toggleSwitch.style.opacity = '1';
+      toggleSwitch.style.visibility = 'visible';
+      toggleSwitch.style.display = 'flex';
+      
       // Add toggle switch to the message
-      message.style.position = 'relative'; // Ensure proper positioning
       message.appendChild(toggleSwitch);
+      
+      console.log('[Investor Explainer] Toggle added to message', index);
     });
   },
   
@@ -86,14 +102,30 @@ const investorExplainer = {
     const switchContainer = document.createElement('div');
     switchContainer.className = 'explainer-switch';
     
-    // Create the label and toggle elements
+    // Ensure the switch is positioned correctly and visible
+    switchContainer.style.position = 'absolute';
+    switchContainer.style.right = '15px';
+    switchContainer.style.top = '15px';
+    switchContainer.style.zIndex = '10';
+    switchContainer.style.display = 'flex';
+    switchContainer.style.alignItems = 'center';
+    switchContainer.style.backgroundColor = 'rgba(42, 43, 50, 0.9)';
+    switchContainer.style.padding = '5px 8px';
+    switchContainer.style.borderRadius = '12px';
+    switchContainer.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.2)';
+    
+    // Create the label and toggle elements with explicit styling
     switchContainer.innerHTML = `
-      <label class="switch">
-        <input type="checkbox" class="explainer-toggle">
-        <span class="slider round"></span>
+      <label class="switch" style="position: relative; display: inline-block; width: 36px; height: 20px; margin-right: 8px;">
+        <input type="checkbox" class="explainer-toggle" style="opacity: 0; width: 0; height: 0;">
+        <span class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #2b3240; border: 1px solid #3a4356; border-radius: 20px; transition: .4s;"></span>
       </label>
-      <span class="switch-label">Explainers</span>
+      <span class="switch-label" style="font-size: 0.8em; color: #8f96a3; font-weight: 500;">Explainers</span>
     `;
+    
+    // Style the slider button
+    const slider = switchContainer.querySelector('.slider');
+    slider.innerHTML = `<span style="position: absolute; content: ''; height: 14px; width: 14px; left: 3px; bottom: 2px; background-color: #8f96a3; transition: .3s; border-radius: 50%;"></span>`;
     
     // Add event listener for toggle change
     const toggleInput = switchContainer.querySelector('.explainer-toggle');
@@ -101,9 +133,23 @@ const investorExplainer = {
       const isChecked = e.target.checked;
       const messageContent = e.target.closest('.value-bot-message').querySelector('.message-content');
       
+      // Update toggle appearance
+      const switchLabel = e.target.closest('.explainer-switch').querySelector('.switch-label');
+      const sliderElement = e.target.nextElementSibling;
+      
       if (isChecked) {
+        sliderElement.style.backgroundColor = '#1c2538';
+        sliderElement.style.borderColor = '#4cc9f0';
+        sliderElement.querySelector('span').style.transform = 'translateX(16px)';
+        sliderElement.querySelector('span').style.backgroundColor = '#4cc9f0';
+        switchLabel.style.color = '#4cc9f0';
         this.processAndAddExplanations(messageContent);
       } else {
+        sliderElement.style.backgroundColor = '#2b3240';
+        sliderElement.style.borderColor = '#3a4356';
+        sliderElement.querySelector('span').style.transform = 'translateX(0)';
+        sliderElement.querySelector('span').style.backgroundColor = '#8f96a3';
+        switchLabel.style.color = '#8f96a3';
         this.removeExplanations(messageContent);
       }
     });
@@ -194,10 +240,20 @@ const investorExplainer = {
 
 // Initialize the explainer when DOM is fully loaded
 document.addEventListener('DOMContentLoaded', function() {
-  investorExplainer.initialize();
+  setTimeout(() => investorExplainer.initialize(), 500); // Slight delay to ensure DOM is ready
 });
 
 // For existing page, initialize immediately if DOM is already loaded
 if (document.readyState === 'interactive' || document.readyState === 'complete') {
-  investorExplainer.initialize();
+  // Wait for any ongoing DOM updates to complete
+  setTimeout(() => {
+    console.log('[Investor Explainer] Initializing explainer on existing page...');
+    investorExplainer.initialize();
+    
+    // Additional attempt after a delay to catch any late-rendered messages
+    setTimeout(() => {
+      console.log('[Investor Explainer] Making second pass to catch any missed messages...');
+      investorExplainer.addExplainerTogglesToBotMessages();
+    }, 2000);
+  }, 500);
 }
