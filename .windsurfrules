@@ -1,2 +1,2 @@
-you are making a financial analysis app that creates a Sankey income statement chart. Use this as an example https://miro.medium.com/v2/resize:fit:1100/format:webp/1*6WjS9b0rOJTMASerexn7Jg.jpeg
-when making changes to the d3 chart, try to make them universal and flexible such that they will work for every income statement from various companies
+You are making a financial analysis chart. Only work on one widget at a time. Never push to github without approval from me.
+Don't make any changes to the sankey income statement chart widget unless I approve it. It works great now, and shouldn't be touched.

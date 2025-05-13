@@ -240,7 +240,27 @@ async function renderSankey(data, ticker) {
 
   // --- D3 Chart Render ---
   if (window.renderD3Sankey) {
+    // Store current ticker for bot context
+    window.currentTicker = ticker;
+    
+    // Prepare data for bot
+    window.sankeyDataForBot = {
+      ...data,
+      segments,
+      detailedExpenses,
+      growthData
+    };
+    
+    // Render the chart
     window.renderD3Sankey(data, segments, ticker, detailedExpenses, growthData);
+    
+    // Dispatch event to notify Value Investor Bot that chart is loaded
+    setTimeout(() => {
+      document.dispatchEvent(new CustomEvent('sankey-chart-loaded', { 
+        detail: { ticker, timestamp: new Date().toISOString() }
+      }));
+      console.log(`[Chart] Dispatched sankey-chart-loaded event for ${ticker}`);
+    }, 1000); // Small delay to ensure chart is fully rendered
   }
 }
 

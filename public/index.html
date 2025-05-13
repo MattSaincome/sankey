@@ -257,54 +257,235 @@
       display: flex;
       flex-direction: column;
       background: #181a20;
-      border-radius: 10px;
-      box-shadow: 0 2px 12px #0002;
       padding: 0;
-      min-height: 400px;
-      max-width: 100%;
+      min-height: 420px;
+      height: 100%;
+      width: 100%; /* Always full width */
       margin: 0 auto;
       overflow: hidden;
-      border: 1px solid #23242a;
+      flex: 1 1 auto;
+      box-sizing: border-box;
     }
     .value-bot-messages {
-      flex: 1;
-      width: 100%;
+      flex: 1 1 auto;
+      width: 100% !important;
+      align-self: stretch;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 18px 16px 6px 16px;
       min-height: 260px;
-      max-height: 400px;
+      height: 100%;
       display: flex;
       flex-direction: column;
       gap: 12px;
       box-sizing: border-box;
+      justify-content: flex-start;
     }
     .value-bot-message {
-      background: #23242a;
-      border-radius: 7px;
-      padding: 8px 12px;
-      width: 100%;
+      border-radius: 18px;
+      padding: 12px 14px 16px 14px; /* Increased bottom padding */
       word-break: break-word;
-      margin-bottom: 2px;
+      margin-bottom: 8px; /* Increased bottom margin */
       color: #eceff4;
       box-shadow: 0 1px 4px #0001;
       font-family: 'Inter', sans-serif;
       white-space: pre-line;
       box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
+      position: relative;
+      overflow-wrap: break-word;
+      overflow: hidden;
     }
     .value-bot-message.user {
       align-self: flex-end;
-      background: linear-gradient(90deg, #4cc9f0 0%, #4361ee 100%);
+      background: #4361ee;
       color: #fff;
-      width: 100%;
+      border-radius: 12px;
+      border-bottom-right-radius: 3px;
+      margin-right: 8px;
+      margin-left: 60px; /* Add space on the left for better balance */
+      margin-bottom: 18px; /* Increased spacing below user messages */
+      padding: 14px 18px; /* Consistent padding on all sides */
+      line-height: 1.5; /* Improved line height for better readability */
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); /* Subtle shadow for depth */
+      max-width: 85%; /* Prevent messages from stretching full width */
+      word-break: break-word; /* Ensure words break properly */
+      overflow: visible; /* Ensure content isn't cut off */
     }
     .value-bot-message.bot {
-      position: relative;
       align-self: flex-start;
-      background: #23242a;
+      border-radius: 12px; /* Fully rounded corners */
+      position: relative;
+      background: #2a2b32;
       color: #eceff4;
+      margin-right: 20px;
+      margin-left: 20px; /* Space for the speech bubble tail */
+      margin-bottom: 0;
+      min-height: 0;
+      width: auto !important;
+      flex: 1;
+      box-sizing: border-box;
+      padding: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2); /* Add shadow for depth */
+    }
+    
+    /* Triangle pointer that connects the bubble to the avatar */
+    .value-bot-message.bot::before {
+      content: '';
+      position: absolute;
+      left: -25px; /* Position it even further out from the bubble */
+      top: 30px; /* Align with avatar's mouth */
+      width: 0;
+      height: 0;
+      border-top: 20px solid transparent;
+      border-bottom: 20px solid transparent;
+      border-right: 25px solid #2a2b32; /* Same as bubble background */
+      z-index: 5; /* Ensure it appears above other elements */
+    }
+    /* Ensure avatar always appears */
+    .value-bot-message.bot .investor-bot-avatar {
+      display: block !important;
+      visibility: visible !important;
+      z-index: 5;
+    }
+    .value-bot-message.bot.loading-indicator {
+      min-height: 120px;
+      transition: min-height 0.2s;
+      width: 100% !important;
+      max-width: 100% !important;
+      display: flex;
+      align-items: center;
+      background-color: #2a2b32;
+      padding: 15px 20px;
+    }
+    
+    .loading-dots {
+      width: 100%;
+      text-align: left;
+      padding-left: 30px;
+      font-size: 1.5em;
+      letter-spacing: 8px;
+    }
+    .value-bot-message.bot p {
+      margin-top: 0.34em;
+      margin-bottom: 0.34em;
+    }
+    .value-bot-message.bot.welcome-bubble {
+      display: flex;
+      align-items: flex-start;
+      padding: 12px 14px;
+      background: #2a2b32;
+      box-shadow: 0 1px 4px #0001;
+      border-radius: 5px;
+      margin-bottom: 16px;
+      min-height: 120px;
+    }
+    .value-bot-message.bot.welcome-bubble .investor-bot-avatar {
+      width: 80px;
+      height: 120px;
+      position: absolute;
+      left: -92px;
+      top: 0;
+      background: transparent;
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      z-index: 99;
+      pointer-events: auto;
+    }
+    .value-bot-message.bot.welcome-bubble .message-content {
+      color: #eceff4;
+      font-size: 1.14em;
+      max-width: 100%;
+      width: 100%;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+      word-break: break-word;
+      hyphens: auto;
+    }
+    
+    /* Make message content fit container */
+    .message-content {
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+      word-break: break-word;
+      hyphens: auto;
+      max-width: 100%;
+    }
+    
+    /* Make pre blocks fit container */
+    .message-content pre {
+      white-space: pre-wrap;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+    
+    /* Make code blocks fit container */
+    .message-content code {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-width: 100%;
+    }
+    
+    /* Make sure tables don't overflow */
+    .message-content table {
+      width: 100%;
+      table-layout: fixed;
+      overflow-wrap: break-word;
+    }
+    
+    /* Make images fit container */
+    .message-content img {
+      max-width: 100%;
+      height: auto;
+    }
+    /* Remove special pointer for welcome bubble */
+
+    .value-bot-message.bot::before {
+      content: '';
+      position: absolute;
+      left: -18px;
+      top: 32px;
+      width: 0;
+      height: 0;
+      border-top: 14px solid transparent;
+      border-bottom: 14px solid transparent;
+      border-right: 18px solid #2a2b32;
+      z-index: 2;
+    }
+    .investor-bot-avatar {
+      width: 48px;
+      height: 48px;
+      position: absolute;
+      left: -60px;
+      top: 0;
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      z-index: 999 !important;
+    }
+    
+    .investor-bot-avatar-inline {
+      display: inline-block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      z-index: 99 !important;
+      background: transparent;
+    }
+    
+    .bot-message-wrapper {
+      position: relative;
       width: 100%;
     }
-
+    .bot-message-container {
+      position: relative;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+      margin-left: -18px; /* Move all bot responses left */
+    }
     .value-bot-form {
       display: flex;
       gap: 8px;
@@ -381,6 +562,138 @@
     .sample-question-btn:hover {
       background: #34495e;
       border-color: #4cc9f0;
+    }
+    
+    /* Value Investor Bot Interface */
+    .value-bot-interface {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 330px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background-color: #181a20;
+      z-index: 10;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    
+    /* Avatar and Info Column */
+    .value-bot-avatar-column {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-right: 30px;
+    }
+    
+    /* High-tech styled avatar container */
+    .value-bot-avatar-container {
+      width: 200px;
+      height: 200px;
+      position: relative;
+      margin-bottom: 15px;
+    }
+    
+    /* The actual avatar image */
+    .value-bot-avatar-container img {
+      width: 140px;
+      height: 200px;
+      display: block;
+      margin: 10px auto;
+      object-fit: contain;
+      background: transparent;
+    }
+    
+    /* Status indicator */
+    .value-bot-status {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 0.9em;
+      font-weight: 500;
+      text-align: center;
+      background-color: #242730;
+      color: #8f96a3;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      letter-spacing: 0.5px;
+      min-width: 120px;
+    }
+    
+    .value-bot-status.ready {
+      background-color: #1c2538;
+      color: #4cc9f0;
+      border-left: 3px solid #4cc9f0;
+    }
+    
+    /* Information column */
+    .value-bot-info-column {
+      flex: 1 1 auto;
+      max-width: 380px;
+      padding: 20px 0;
+    }
+    
+    .value-bot-info-column h3 {
+      font-size: 1.4em;
+      font-weight: 600;
+      margin: 0 0 12px 0;
+      color: #fff;
+    }
+    
+    .value-bot-info-column p {
+      margin-bottom: 8px;
+    }
+    .bot-ready-note {
+      font-size: 0.92em;
+      color: #b2bec3;
+      display: block;
+      margin-top: 5px;
+      font-style: italic;
+    }
+
+    
+    /* Start conversation button */
+    .value-bot-start-button {
+      position: relative;
+    
+      display: inline-block;
+      background: linear-gradient(90deg, #4cc9f0, #4361ee);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 10px 20px;
+      font-size: 1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 10px rgba(76, 201, 240, 0.3);
+    }
+    
+    .value-bot-start-button:hover {
+      box-shadow: 0 4px 15px rgba(76, 201, 240, 0.4);
+      transform: translateY(-1px);
+    }
+    .value-bot-spinner {
+      display: inline-block;
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(76, 201, 240, 0.3);
+      border-radius: 50%;
+      border-top-color: #4cc9f0;
+      animation: spin 1s ease-in-out infinite;
+      margin-top: 15px;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
     
     /* Feature Request Form Styling */
@@ -779,6 +1092,11 @@
       text-align: center;
     }
   </style>
+  <!-- Buffett Wisdom System JS Files -->
+  <script src="buffett-wisdom-unified.js"></script>
+  <script src="buffett-wisdom-semantic.js"></script>
+  <script src="buffett-letter-insights-semantic.js"></script>
+  <script src="buffett-wisdom-semantic-integration.js"></script>
 </head>
 <body>
   <header class="app-header">
@@ -817,17 +1135,32 @@
       <button class="widget-minimize-btn" title="Minimize">&#8211;</button>
       <div class="dashboard-title">Value Investor Bot</div>
       <div id="value-bot-chat" class="value-bot-chat">
-        <div id="value-bot-messages" class="value-bot-messages"></div>
-        <div class="sample-questions">
-          <div class="sample-questions-title">Sample Questions:</div>
-          <div class="sample-questions-container">
-            <button type="button" class="sample-question-btn">Which metrics stand out to you?</button>
-            <button type="button" class="sample-question-btn">Look through the books and report back to me if this business is investable.</button>
-            <button type="button" class="sample-question-btn">What red flags do you see?</button>
-            <button type="button" class="sample-question-btn">What challenges might this business soon face?</button>
-            <button type="button" class="sample-question-btn">Should I make a long term investment in this business?</button>
+        <!-- High-tech Value Investor Bot Interface -->
+        <div id="value-bot-interface" class="value-bot-interface">
+          <div class="value-bot-avatar-column">
+            <div class="value-bot-avatar-container">
+              <img src="value investor bot avatar.png" alt="Value Investor Bot Avatar" />
+            </div>
+            <!-- Removed value-bot-status as per user request -->
+          </div>
+          
+          <div class="value-bot-info-column">
+            <h3>Value Investor Bot</h3>
+            <p id="value-bot-message">I'm a value investor trained in the discipline of Warren Buffet, Charlie Munger, and Ben Graham. Let's wait for a fat pitch -- there are no called strikes on Wall Street.</p>
+            <br />
+            <small class="bot-ready-note" id="bot-ready-note" style="display:none;"></small>
+            <button id="start-investor-chat" class="value-bot-start-button">
+  <span class="btn-content">
+    <span class="btn-text">Looking through the books!</span>
+    <span class="loading-dots" id="investor-bot-loading"><span>.</span><span>.</span><span>.</span></span>
+    <span class="ready-light" id="investor-bot-ready" style="display:none;"></span>
+  </span>
+</button>
           </div>
         </div>
+        
+        <!-- Chat Messages (initially hidden) -->
+        <div id="value-bot-messages" class="value-bot-messages" style="display: none;"></div>
         <form id="value-bot-form" class="value-bot-form" autocomplete="off">
           <input type="text" id="value-bot-input" class="value-bot-input" placeholder="Ask about value investing..." autocomplete="off" />
           <button type="submit" class="value-bot-send">Send</button>
@@ -902,6 +1235,30 @@
   <script src="html2canvas.min.js"></script>
   <script src="script.js"></script>
   <script src="d3-sankey.js"></script>
+  <script src="buffett-munger-wisdom.js"></script>
+  <script src="buffett-annual-letters.js"></script>
+  <script src="buffett-annual-letters-2.js"></script>
+  <script src="buffett-annual-letters-3.js"></script>
+  <script src="buffett-letters-1977.js"></script>
+  <script src="buffett-letters-1978.js"></script>
+  <script src="buffett-letters-1979.js"></script>
+  <script src="buffett-letters-1980.js"></script>
+  <script src="buffett-letters-1981.js"></script>
+  <script src="buffett-letters-1982.js"></script>
+  <script src="buffett-letters-1983.js"></script>
+  <script src="buffett-letters-1984.js"></script>
+  <script src="buffett-letters-1985.js"></script>
+  <script src="buffett-letters-1986.js"></script>
+  <script src="buffett-letters-1987.js"></script>
+  <script src="buffett-letters-1988.js"></script>
+  <script src="buffett-letters-1989.js"></script>
+  <script src="buffett-letters-1990.js"></script>
+  <script src="buffett-letters-1991.js"></script>
+  <script src="buffett-letters-1992.js"></script>
+  <script src="buffett-letters-1993.js"></script>
+  <script src="buffett-letters-1994.js"></script>
+  <script src="buffett-letters-unified.js"></script>
+  <script src="buffett-wisdom-unified.js"></script>
   <style>
     .widget-minimize-btn {
       background: none;
@@ -1001,22 +1358,553 @@
     const botForm = document.getElementById('value-bot-form');
     const botInput = document.getElementById('value-bot-input');
     const sampleQuestionBtns = document.querySelectorAll('.sample-question-btn');
+    const startChatBtn = document.getElementById('start-investor-chat');
     let botHistory = [];
-
-    function appendBotMessage(content, sender) {
-      const msg = document.createElement('div');
-      msg.className = 'value-bot-message ' + sender;
-      if (sender === 'bot') {
-        // Render Markdown as HTML and sanitize
-        const html = DOMPurify.sanitize(marked.parse(content));
-        msg.innerHTML = html;
-      } else {
-        msg.textContent = content;
-      }
-      botMessagesDiv.appendChild(msg);
-      botMessagesDiv.scrollTop = botMessagesDiv.scrollHeight;
+    
+    // CRITICAL: Completely disable auto-scrolling in the chat
+    // This is necessary to prevent the view from being pulled to the bottom when new messages appear
+    if (botMessagesDiv) {
+      // Modify the chat container's CSS to enable overflow without auto-scrolling
+      botMessagesDiv.style.overflowY = 'auto';
+      botMessagesDiv.style.maxHeight = '100vh'; // Allow scrolling but don't force it
+      
+      // Completely disable scrollIntoView which is often the cause of auto-scrolling
+      Element.prototype.scrollIntoView = function() {
+        // Do nothing - prevent all scrollIntoView calls
+        console.log('[Scroll Prevention] Blocked scrollIntoView call');
+        return;
+      };
+      
+      // Make sure window.scrollTo doesn't affect our chat
+      const originalScrollTo = window.scrollTo;
+      window.scrollTo = function() {
+        // Only allow manual scrolling, not automatic
+        if (window.manualScroll) {
+          originalScrollTo.apply(this, arguments);
+        } else {
+          console.log('[Scroll Prevention] Blocked scrollTo call');
+        }
+      };
+      
+      // Override any scroll behaviors that might be forcing scroll
+      Object.defineProperty(botMessagesDiv, 'scrollTop', {
+        set: function(val) {
+          // Only allow manual scrolling, ignore programmatic scrolls
+          if (window.manualScroll) {
+            Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTop').set.call(this, val);
+          }
+        },
+        get: function() {
+          return Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTop').get.call(this);
+        }
+      });
+      
+      // Only allow manual scrolls from user interaction
+      botMessagesDiv.addEventListener('mousedown', function() {
+        window.manualScroll = true;
+      });
+      
+      botMessagesDiv.addEventListener('mouseup', function() {
+        window.manualScroll = false;
+      });
+      
+      // Also handle touch devices
+      botMessagesDiv.addEventListener('touchstart', function() {
+        window.manualScroll = true;
+      });
+      
+      botMessagesDiv.addEventListener('touchend', function() {
+        window.manualScroll = false;
+      });
     }
     
+    // Add click event listener to the start chat button
+    startChatBtn?.addEventListener('click', startValueInvestorChat);
+
+    // Function to prevent automatic scroll jumping
+    function preserveScrollPosition(callback) {
+      // Save current scroll position
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      
+      // Execute the DOM modification
+      callback();
+      
+      // Restore scroll position
+      window.scrollTo(0, scrollTop);
+    }
+    
+    function appendBotMessage(content, sender) {
+      if (sender === 'bot') {
+        // Create a flex container for the message
+        const msgContainer = document.createElement('div');
+        msgContainer.className = 'bot-message-container';
+        msgContainer.style.display = 'flex';
+        msgContainer.style.alignItems = 'flex-start';
+        msgContainer.style.marginBottom = '20px';
+        msgContainer.style.width = '100%';
+        
+        // Create the avatar
+        const avatar = document.createElement('img');
+        avatar.src = 'value investor bot avatar.png';
+        avatar.alt = 'Investor Bot Avatar';
+        avatar.style.width = '60px';
+        avatar.style.height = '90px';
+        avatar.style.marginRight = '15px';
+        avatar.style.flexShrink = '0';
+        avatar.style.objectFit = 'contain';
+        msgContainer.appendChild(avatar);
+        
+        // Create the speech bubble wrapper with position relative for the pointer
+        const bubbleWrapper = document.createElement('div');
+        bubbleWrapper.style.position = 'relative';
+        bubbleWrapper.style.flex = '1';
+        
+        // Create explicit triangle pointer for speech bubble
+        const pointer = document.createElement('div');
+        pointer.style.position = 'absolute';
+        pointer.style.left = '0'; // Attach directly to bubble edge
+        pointer.style.top = '22px'; // Align with avatar's head/face
+        pointer.style.width = '0';
+        pointer.style.height = '0';
+        pointer.style.borderTop = '22px solid transparent';
+        pointer.style.borderBottom = '22px solid transparent';
+        pointer.style.borderRight = '22px solid #2a2b32';
+        pointer.style.marginLeft = '0'; // Make triangle flush with bubble
+        pointer.style.zIndex = '10'; // Ensure it's visible
+        bubbleWrapper.appendChild(pointer);
+        
+        // Create the message bubble
+        const bubble = document.createElement('div');
+        bubble.className = 'value-bot-message bot';
+        bubble.style.borderRadius = '12px';
+        bubble.style.backgroundColor = '#2a2b32';
+        bubble.style.color = '#eceff4';
+        bubble.style.padding = '15px';
+        bubble.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+        bubble.style.width = '100%';
+        
+        // Add the message content
+        const html = DOMPurify.sanitize(marked.parse(content));
+        const msgContent = document.createElement('div');
+        msgContent.className = 'message-content';
+        msgContent.innerHTML = html;
+        bubble.appendChild(msgContent);
+        
+        // Add the bubble to the wrapper
+        bubbleWrapper.appendChild(bubble);
+        
+        // Add the wrapper to the container
+        msgContainer.appendChild(bubbleWrapper);
+        
+        // Add the whole container to the messages div while preserving scroll position
+        preserveScrollPosition(() => {
+          botMessagesDiv.appendChild(msgContainer);
+        });
+      } else {
+        // For user messages, create a simple right-aligned message
+        const msg = document.createElement('div');
+        msg.className = 'value-bot-message user';
+        msg.textContent = content;
+        botMessagesDiv.appendChild(msg);
+      }
+      
+    }
+    
+    // Handle loading screen and initial greeting
+    // Function to update bot interface status
+    function updateValueBotStatus(isReady) {
+      const messageElement = document.getElementById('value-bot-message');
+      const noteElement = document.getElementById('bot-ready-note');
+      // Always show the Buffett quote as the main message
+      if (messageElement) {
+        messageElement.textContent = "I'm a value investor trained in the discipline of Warren Buffet, Charlie Munger, and Ben Graham. Let's wait for a fat pitch -- there are no called strikes on Wall Street.";
+      }
+      // Show the note only when ready
+      if (noteElement) {
+        if (isReady) {
+          noteElement.textContent = "I've digested all financial information about this company, and can see everything in the app you see.";
+          noteElement.style.display = 'block';
+        } else {
+          noteElement.textContent = '';
+          noteElement.style.display = 'none';
+        }
+      }
+    }
+    
+    // Function to show bot interface
+    function showValueBotInterface(isReady = false) {
+      const interface = document.getElementById('value-bot-interface');
+      if (interface) interface.style.display = 'flex';
+      updateValueBotStatus(isReady);
+    }
+    
+    // Function to hide bot interface
+    function hideValueBotInterface() {
+      const interface = document.getElementById('value-bot-interface');
+      if (interface) interface.style.display = 'none';
+    }
+    
+    // Function to generate company-specific value investing questions
+    function generateValueInvestingQuestions(ticker, companyName) {
+      // Default value investing questions that apply to any company (focus on investment decisions)
+      const defaultQuestions = [
+        `Is ${companyName} currently trading at a fair value?`,
+        `What is the intrinsic value of ${ticker} based on discounted cash flows?`,
+        `What's the margin of safety for ${companyName} at the current price?`,
+        `How does ${companyName}'s management allocate capital?`,
+        `What competitive advantages (moats) does ${companyName} have?`,
+        `Is ${companyName}'s current P/E ratio justified by its growth rate?`,
+        `How sustainable is ${companyName}'s dividend and what's the payout ratio?`,
+        `What are the biggest risks to ${companyName}'s business model?`,
+        `How does ${companyName}'s return on invested capital compare to peers?`,
+        `What is ${companyName}'s debt situation and financial health?`,
+        `How consistent has ${companyName}'s earnings growth been historically?`,
+        `What red flags should investors be aware of with ${ticker}?`
+      ];
+      
+      // Company-specific investment decision questions based on ticker
+      const companySpecificQuestions = {
+        'AAPL': [
+          `Is Apple's P/E ratio of 32.49 justified by its growth potential?`,
+          `How sustainable is Apple's pricing power and ecosystem moat?`,
+          `What impact might Apple's services growth have on overall margins?`,
+          `Is Apple's 151% ROE sustainable or a cause for concern?`,
+          `How might Apple's capital allocation strategy impact shareholder returns?`,
+          `What risks does Apple face from increasing regulation globally?`
+        ],
+        'MSFT': [
+          `Is Microsoft's cloud growth sustainable against competitors?`,
+          `How does Microsoft's Azure profitability compare to AWS?`,
+          `What's the long-term value of Microsoft's gaming acquisitions?`,
+          `Is Microsoft's dividend growth rate attractive for income investors?`,
+          `How might AI integration affect Microsoft's competitive position?`,
+          `What regulatory risks face Microsoft's expansion plans?`
+        ],
+        'AMZN': [
+          `How profitable is Amazon's AWS segment compared to retail?`,
+          `Is Amazon's retail business margin improving or declining?`,
+          `How does Amazon's capital expenditure translate to shareholder value?`,
+          `What's Amazon's potential for margin expansion in coming years?`,
+          `How concerning is Amazon's lack of meaningful dividend?`,
+          `What threats does Amazon face from emerging e-commerce competitors?`
+        ],
+        'META': [
+          `How is Meta's massive investment in the metaverse affecting ROI?`,
+          `Is Meta's advertising business threatened by privacy changes?`,
+          `How efficient is Meta's R&D spending compared to tech peers?`,
+          `What's the long-term monetization potential of WhatsApp?`,
+          `How dependent is Meta on future user growth for valuation?`,
+          `What regulatory risks might impact Meta's business model?`
+        ],
+        'GOOGL': [
+          `How diverse is Alphabet's revenue stream beyond advertising?`,
+          `Is Alphabet at risk from AI disruption to traditional search?`,
+          `How do Alphabet's moonshot investments impact long-term value?`,
+          `Is Alphabet's lack of meaningful dividend a concern?`,
+          `How might regulatory challenges affect Alphabet's growth?`,
+          `What's the monetization potential of Alphabet's autonomous driving technology?`
+        ],
+        'JPM': [
+          `How does JPMorgan manage interest rate risk in the current environment?`,
+          `What's JPM's loan loss provision strategy in a potential recession?`,
+          `How cyclical is JPM's investment banking revenue?`,
+          `Is JPM's dividend safe during economic downturns?`,
+          `How does JPM's technology investment compare to fintech competitors?`,
+          `What regulatory changes pose the biggest risk to JPM's profitability?`
+        ],
+        'WFC': [
+          `What's the intrinsic value of Wells Fargo using a normalized earnings approach?`,
+          `How have Wells Fargo's regulatory issues affected long-term growth?`,
+          `Is Wells Fargo's dividend safe in the current economic environment?`,
+          `How does Wells Fargo's efficiency ratio compare to other major banks?`,
+          `What's Wells Fargo's competitive position after its recent scandals?`,
+          `How might interest rate changes affect Wells Fargo's profitability?`
+        ],
+        'EE': [
+          `How cyclical is Excelerate Energy's business model?`,
+          `What's driving EE's negative revenue growth and is it temporary?`,
+          `Is EE's capital allocation strategy aligned with shareholder interests?`,
+          `How does EE's debt structure impact its financial flexibility?`,
+          `What competitive advantages does EE have in the energy sector?`,
+          `Is EE's dividend sustainable given its current cash flows?`
+        ],
+        'FL': [
+          `How is Foot Locker adapting to the shift to direct-to-consumer sales?`,
+          `What's Foot Locker's competitive position against Nike's DTC strategy?`,
+          `Is Foot Locker's current valuation justified given retail headwinds?`,
+          `How sustainable is Foot Locker's dividend in the changing retail landscape?`,
+          `What are Foot Locker's growth initiatives beyond traditional retail?`,
+          `How dependent is Foot Locker on mall traffic for its business model?`
+        ]
+      };
+      
+      // Select 6 questions: prioritize company-specific if available
+      let questions = defaultQuestions;
+      if (companySpecificQuestions[ticker]) {
+        // Use company-specific questions if available, otherwise use default
+        questions = companySpecificQuestions[ticker];
+      }
+      
+      // If we don't have enough company-specific questions, supplement with default questions
+      if (questions.length < 6) {
+        // Shuffle default questions and add enough to reach 6 total
+        const shuffledDefaults = defaultQuestions
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 6 - questions.length);
+        
+        questions = [...questions, ...shuffledDefaults];
+      }
+      
+      // Randomize question order and select exactly 6
+      return questions
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 6);
+    }
+    
+    // Function to display suggested questions
+    function displaySuggestedQuestions(ticker, companyName) {
+      const questionsContainer = document.createElement('div');
+      questionsContainer.className = 'suggested-questions-container';
+      questionsContainer.style.display = 'flex';
+      questionsContainer.style.flexDirection = 'column';
+      questionsContainer.style.gap = '10px';
+      questionsContainer.style.marginTop = '20px';
+      questionsContainer.style.marginBottom = '20px';
+      questionsContainer.style.width = '100%';
+      
+      // Add a heading for the suggested questions
+      const heading = document.createElement('div');
+      heading.style.fontSize = '14px';
+      heading.style.color = '#8e94a3';
+      heading.style.marginBottom = '5px';
+      heading.textContent = 'Suggested questions:';
+      questionsContainer.appendChild(heading);
+      
+      // Generate questions
+      const questions = generateValueInvestingQuestions(ticker, companyName);
+      
+      // Create buttons for each question
+      questions.forEach(question => {
+        const button = document.createElement('button');
+        button.className = 'sample-question-btn';
+        button.textContent = question;
+        button.style.backgroundColor = '#5865f2';
+        button.style.color = 'white';
+        button.style.border = 'none';
+        button.style.borderRadius = '20px';
+        button.style.padding = '8px 16px';
+        button.style.fontSize = '14px';
+        button.style.cursor = 'pointer';
+        button.style.textAlign = 'left';
+        button.style.width = '100%';
+        
+        // Add hover effect
+        button.onmouseover = function() {
+          this.style.backgroundColor = '#4752c4';
+        };
+        button.onmouseout = function() {
+          this.style.backgroundColor = '#5865f2';
+        };
+        
+        // Add click event
+        button.addEventListener('click', function() {
+          const input = document.getElementById('value-bot-input');
+          const form = document.getElementById('value-bot-form');
+          
+          if (input && form) {
+            input.value = question;
+            // Submit the form
+            const event = new Event('submit', { cancelable: true });
+            form.dispatchEvent(event);
+          }
+          
+          // Remove all suggested questions after one is clicked
+          const container = document.querySelector('.suggested-questions-container');
+          if (container) {
+            container.remove();
+          }
+        });
+        
+        questionsContainer.appendChild(button);
+      });
+      
+      preserveScrollPosition(() => {
+        botMessagesDiv.appendChild(questionsContainer);
+      });
+    }
+    
+    // Function to start the chat interaction
+    function startValueInvestorChat() {
+      // Hide interface
+      hideValueBotInterface();
+
+      // Show chat messages and input
+      const messagesDiv = document.getElementById('value-bot-messages');
+      if (messagesDiv) {
+        messagesDiv.style.display = 'flex';
+        // If there are no messages, show avatar and welcome bubble
+        if (!messagesDiv.hasChildNodes() || messagesDiv.innerHTML.trim() === '') {
+          const ticker = window.currentTicker || document.getElementById('ticker')?.value || 'this company';
+          
+          // Get full company name based on ticker
+          let companyName = ticker;
+          let companyFactoid = '';
+          
+          // Map tickers to company names and factoids
+          const companyInfo = {
+            'AAPL': {
+              name: 'Apple Inc.',
+              factoid: 'Did you know Apple was founded in 1976 by Steve Jobs, Steve Wozniak, and Ronald Wayne? Wayne sold his 10% stake for just $800 shortly after founding.'
+            },
+            'MSFT': {
+              name: 'Microsoft Corporation',
+              factoid: 'Microsoft was founded by Bill Gates and Paul Allen in 1975. The company initially developed BASIC interpreters for the Altair 8800.'
+            },
+            'AMZN': {
+              name: 'Amazon.com, Inc.',
+              factoid: 'Amazon started as an online bookstore in 1994. Jeff Bezos initially named it "Cadabra" before changing to Amazon, named after the world\'s largest river.'
+            },
+            'GOOGL': {
+              name: 'Alphabet Inc.',
+              factoid: 'Google was founded in 1998 by Larry Page and Sergey Brin while they were Ph.D. students at Stanford University. The name "Google" is a play on the word "googol" (a 1 followed by 100 zeros).'
+            },
+            'META': {
+              name: 'Meta Platforms, Inc.',
+              factoid: 'Meta (formerly Facebook) was launched from Mark Zuckerberg\'s Harvard dorm room in 2004. The initial site was called "Thefacebook" and was limited to Harvard students.'
+            },
+            'TSLA': {
+              name: 'Tesla, Inc.',
+              factoid: 'Tesla was founded in 2003 by a group of engineers, including Elon Musk, who later became CEO. The company was named after electrical engineer Nikola Tesla.'
+            },
+            'NVDA': {
+              name: 'NVIDIA Corporation',
+              factoid: 'NVIDIA was founded in 1993 and initially focused on PC graphics processors. The name NVIDIA comes from the Latin word "invidia" meaning "envy".'
+            },
+            'JPM': {
+              name: 'JPMorgan Chase & Co.',
+              factoid: 'JPMorgan Chase has origins dating back to 1799 and was formed in its current structure by the merger of JPMorgan & Co. and Chase Manhattan in 2000.'
+            },
+            'GFR': {
+              name: 'GreenForest Resources',
+              factoid: 'GreenForest Resources has committed to planting 10 million trees by 2030 as part of their sustainable forestry initiative.'
+            },
+            'FL': {
+              name: 'Foot Locker, Inc.',
+              factoid: 'Foot Locker was originally part of the Woolworth Corporation, founded in 1879. It became an independent company in 1998 focused on athletic footwear and apparel.'
+            }
+          };
+          
+          // Get company information if available
+          if (companyInfo[ticker]) {
+            companyName = companyInfo[ticker].name;
+            companyFactoid = companyInfo[ticker].factoid;
+          }
+          
+          // Compose the welcome content in markdown, just like appendBotMessage
+          let welcomeContent = '';
+          
+          // Always use the full company name, never just the ticker
+          // If we don't have company info for this ticker, try to generate a name
+          if (!companyInfo[ticker] && ticker.length <= 5 && /^[A-Z]+$/.test(ticker)) {
+            // This looks like a ticker but we don't have info - try to make a generic company name
+            companyName = `${ticker} Corporation`;
+          }
+          
+          if (companyFactoid) {
+            welcomeContent = `**Welcome!** ${companyFactoid}\n\nAsk me anything about ${companyName}!`;
+          } else {
+            welcomeContent = `Ask me anything about ${companyName}!`;
+          }
+          // Display welcome message
+          appendBotMessage(welcomeContent, 'bot');
+          
+          // Display suggested value investing questions
+          displaySuggestedQuestions(ticker, companyName);
+        }
+      }
+
+      // Show sample questions
+      const sampleQuestions = document.querySelector('.sample-questions');
+      if (sampleQuestions) sampleQuestions.style.display = 'block';
+
+      // Focus on input
+      const botInput = document.getElementById('value-bot-input');
+      if (botInput) botInput.focus();
+    }
+    
+    // Show analyzing state when user searches for a new ticker
+    document.getElementById('search-form')?.addEventListener('submit', function(e) {
+      // Reset bot message history
+      botHistory = [];
+      // Clear bot messages div
+      botMessagesDiv.innerHTML = '';
+      // Hide any previous chat interface
+      const messagesDiv = document.getElementById('value-bot-messages');
+      if (messagesDiv) messagesDiv.style.display = 'none';
+      const sampleQuestions = document.querySelector('.sample-questions');
+      if (sampleQuestions) sampleQuestions.style.display = 'none';
+      // Show interface in analyzing state
+      showValueBotInterface(false);
+    });
+
+    // Track widget loading status
+    let widgetsReady = {
+      sankey: false,
+      competitors: false,
+      valuation: false
+    };
+    
+    // Function to check if all widgets are loaded
+    function checkAllWidgetsReady() {
+      return widgetsReady.sankey && widgetsReady.competitors && widgetsReady.valuation;
+    }
+    
+    // Function to update bot ready status only when valuation widget is ready
+    function updateBotReadyStatus() {
+      // Make bot ready only when valuation data is loaded (contains critical metrics)
+      if (widgetsReady.valuation) {
+        updateValueBotStatus(true);
+        console.log('Valuation widget loaded, Value Investor Bot is ready for interaction');
+      } else {
+        // Keep as analyzing until valuation data is available
+        updateValueBotStatus(false);
+        console.log('Waiting for valuation widget to load...');
+      }
+      
+      // Log the status of all widgets for tracking
+      console.log(`Widget status: Sankey=${widgetsReady.sankey}, Competitors=${widgetsReady.competitors}, Valuation=${widgetsReady.valuation}`);
+    }
+    
+    // Sankey chart loaded event listener
+    document.addEventListener('sankey-chart-loaded', function(e) {
+      const ticker = e.detail.ticker;
+      if (ticker) {
+        widgetsReady.sankey = true;
+        updateBotReadyStatus();
+      }
+    });
+    
+    // Competitors widget loaded event listener
+    document.addEventListener('competitors-widget-loaded', function(e) {
+      widgetsReady.competitors = true;
+      updateBotReadyStatus();
+    });
+    
+    // Valuation widget loaded event listener
+    document.addEventListener('valuation-widget-loaded', function(e) {
+      widgetsReady.valuation = true;
+      updateBotReadyStatus();
+    });
+    
+    // Reset widget status when ticker changes
+    document.getElementById('search-form')?.addEventListener('submit', function() {
+      widgetsReady = {
+        sankey: false,
+        competitors: false,
+        valuation: false
+      };
+    });
+
     // Add click handlers for sample question buttons
     sampleQuestionBtns.forEach(btn => {
       btn.addEventListener('click', function() {
@@ -1159,16 +2047,78 @@
         window.latestBotDataset = `Company Ticker: ${currentTicker}\n\nSankey Chart (Income Statement):\n${sankeyText}\n\nValuation Metrics:\n${valText}\n\nCompetitors:\n${compText}`;
       }
 
-      appendBotMessage(botInput.value.trim(), 'user');
+      // Add user message to chat UI
+      // Add user message with scroll position preserved
+      preserveScrollPosition(() => {
+        appendBotMessage(botInput.value.trim(), 'user');
+      });
       botInput.value = '';
       botInput.disabled = true;
       
-      // Show loading indicator (animated)
+      // Add user message to history BEFORE making the API call
+      // This ensures the history is updated properly and responses align with questions
+      botHistory.push({ role: 'user', content: userMsg });
+      
+      // For first message, create an invisible placeholder with the same dimensions
+      // to maintain consistent spacing and prevent layout shifts
       const loadingMsg = document.createElement('div');
       loadingMsg.className = 'value-bot-message bot loading-indicator';
-      loadingMsg.innerHTML = '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>';
-      botMessagesDiv.appendChild(loadingMsg);
-      botMessagesDiv.scrollTop = botMessagesDiv.scrollHeight;
+      loadingMsg.style.width = 'calc(100% - 110px)';
+      loadingMsg.style.boxSizing = 'border-box';
+      
+      // Position avatar outside and to the left of the bubble
+      const avatarContainer = document.createElement('div');
+      avatarContainer.style.position = 'absolute';
+      avatarContainer.style.left = '-92px';
+      avatarContainer.style.top = '0';
+      avatarContainer.style.width = '80px';
+      avatarContainer.style.height = '120px';
+      avatarContainer.style.zIndex = '999';
+      avatarContainer.style.display = 'block';
+      avatarContainer.style.overflow = 'visible';
+      
+      const avatar = document.createElement('img');
+      avatar.src = 'value investor bot avatar.png';
+      avatar.alt = 'Investor Bot Avatar';
+      avatar.className = 'investor-bot-avatar';
+      avatar.style.width = '100%';
+      avatar.style.height = '100%';
+      avatar.style.objectFit = 'contain';
+      avatar.style.display = 'block';
+      avatar.style.visibility = 'visible';
+      avatar.style.opacity = '1';
+      avatarContainer.appendChild(avatar);
+      
+      loadingMsg.appendChild(avatarContainer);
+      
+      // Create message content container
+      const msgContent = document.createElement('div');
+      msgContent.className = 'message-content';
+      msgContent.innerHTML = '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>';
+      loadingMsg.appendChild(msgContent);
+      
+      // Only actually show the loading indicator for non-first messages
+      // But we still create it to properly size the container
+      if (botHistory.length > 1) {
+        // Show loading indicator for non-first messages
+        loadingMsg.style.display = 'block';
+        preserveScrollPosition(() => {
+          botMessagesDiv.appendChild(loadingMsg);
+        });
+      } else {
+        // For first message, we create a hidden placeholder with the right size
+        // to ensure consistent layout, but don't show dots
+        loadingMsg.style.opacity = '0';
+        loadingMsg.style.position = 'absolute';
+        loadingMsg.style.pointerEvents = 'none';
+        preserveScrollPosition(() => {
+          document.body.appendChild(loadingMsg);
+        });
+      }
+      
+      // Don't auto-scroll to bottom when the loading indicator appears
+      
+      // For first message, we don't add any loading indicator to prevent size changes
       console.log('[Investor Bot] Starting API call at:', new Date().toISOString());
       console.log('[Investor Bot] Message length:', userMsg.length);
       console.log('[Investor Bot] History items:', botHistory.length);
@@ -1210,10 +2160,51 @@
           console.log('[Investor Bot] Error present:', !!data.error);
           
           if (botResponse) {
-            // We have a response (either reply or answer) to show to the user
-            appendBotMessage(botResponse, 'bot');
-            botHistory.push({ role: 'user', content: userMsg });
-            botHistory.push({ role: 'assistant', content: botResponse });
+            // Enhance the response with comprehensive Buffett/Munger wisdom using our unified system
+            let enhancedResponse = botResponse;
+            
+            try {
+              const currentTicker = window.currentTicker || document.getElementById('ticker')?.value || '';
+              
+              // Extract financial metrics for better context-matching
+              const financialMetrics = {};
+              
+              // Try to extract metrics from valuation data if available
+              if (window.valuationDataForBot) {
+                financialMetrics.pe = parseFloat(window.valuationDataForBot.pe) || null;
+                financialMetrics.pb = parseFloat(window.valuationDataForBot.pb) || null;
+                financialMetrics.returnOnEquity = parseFloat(window.valuationDataForBot.roe) || null;
+                financialMetrics.returnOnInvestedCapital = parseFloat(window.valuationDataForBot.roic) || null;
+                financialMetrics.debtToEquity = parseFloat(window.valuationDataForBot.debtToEquity) || null;
+                financialMetrics.dividendYield = parseFloat(window.valuationDataForBot.dividendYield) || null;
+              }
+              
+              // Use our unified wisdom system to enhance the response with relevant Buffett/Munger wisdom
+              if (window.buffettWisdomUnified) {
+                console.log('[Investor Bot] Enhancing response with Buffett/Munger wisdom');
+                enhancedResponse = window.buffettWisdomUnified.enrichBotResponse(
+                  botResponse, 
+                  currentTicker, 
+                  financialMetrics
+                );
+                console.log('[Investor Bot] Added Buffett/Munger wisdom to response');
+              } else {
+                console.warn('[Investor Bot] Unified Buffett wisdom system not found');
+              }
+            } catch (err) {
+              console.warn('[Investor Bot] Error enhancing response with Buffett/Munger wisdom:', err);
+              // Fall back to original response if there's an error
+              enhancedResponse = botResponse;
+            }
+            
+            // Show the enhanced bot response while preserving the user's scroll position
+            preserveScrollPosition(() => {
+              appendBotMessage(enhancedResponse, 'bot');
+            });
+            
+            // Add the bot's response to history AFTER receiving it
+            // This ensures the history is complete for future interactions
+            botHistory.push({ role: 'assistant', content: enhancedResponse });
             
             // If there was also an error, log it but we still showed the friendly message
             if (data.error) {
@@ -1224,7 +2215,9 @@
             // Neither reply nor answer property found - use a fallback message
             console.error('[Investor Bot] No reply or answer in response:', data);
             const fallbackMsg = "I'm currently having trouble analyzing this data. Please try again in a moment.";
-            appendBotMessage(fallbackMsg, 'bot');
+            preserveScrollPosition(() => {
+              appendBotMessage(fallbackMsg, 'bot');
+            });
             // Don't add fallback messages to history
           }
         } else {
