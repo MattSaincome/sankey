@@ -102,30 +102,32 @@ const investorExplainer = {
     const switchContainer = document.createElement('div');
     switchContainer.className = 'explainer-switch';
     
-    // Ensure the switch is positioned correctly and visible
+    // Ensure the switch is positioned correctly and very visible
     switchContainer.style.position = 'absolute';
     switchContainer.style.right = '15px';
-    switchContainer.style.top = '15px';
+    switchContainer.style.bottom = '15px';
     switchContainer.style.zIndex = '10';
     switchContainer.style.display = 'flex';
     switchContainer.style.alignItems = 'center';
-    switchContainer.style.backgroundColor = 'rgba(42, 43, 50, 0.9)';
-    switchContainer.style.padding = '5px 8px';
+    switchContainer.style.backgroundColor = 'rgba(30, 38, 51, 0.95)';
+    switchContainer.style.padding = '8px 12px';
     switchContainer.style.borderRadius = '12px';
-    switchContainer.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.2)';
+    switchContainer.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.4)';
+    switchContainer.style.border = '1px solid #4cc9f0';
+    switchContainer.style.cursor = 'pointer';
     
-    // Create the label and toggle elements with explicit styling
+    // Create the label and toggle elements with explicit styling - making them larger and more visible
     switchContainer.innerHTML = `
-      <label class="switch" style="position: relative; display: inline-block; width: 36px; height: 20px; margin-right: 8px;">
+      <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px; margin-right: 10px;">
         <input type="checkbox" class="explainer-toggle" style="opacity: 0; width: 0; height: 0;">
-        <span class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #2b3240; border: 1px solid #3a4356; border-radius: 20px; transition: .4s;"></span>
+        <span class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #2b3240; border: 1px solid #4cc9f0; border-radius: 24px; transition: .4s;"></span>
       </label>
-      <span class="switch-label" style="font-size: 0.8em; color: #8f96a3; font-weight: 500;">Explainers</span>
+      <span class="switch-label" style="font-size: 1em; color: #4cc9f0; font-weight: 600;">Explainers</span>
     `;
     
-    // Style the slider button
+    // Style the slider button - making it larger for better visibility
     const slider = switchContainer.querySelector('.slider');
-    slider.innerHTML = `<span style="position: absolute; content: ''; height: 14px; width: 14px; left: 3px; bottom: 2px; background-color: #8f96a3; transition: .3s; border-radius: 50%;"></span>`;
+    slider.innerHTML = `<span style="position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: #8f96a3; transition: .3s; border-radius: 50%;"></span>`;
     
     // Add event listener for toggle change
     const toggleInput = switchContainer.querySelector('.explainer-toggle');
@@ -140,16 +142,18 @@ const investorExplainer = {
       if (isChecked) {
         sliderElement.style.backgroundColor = '#1c2538';
         sliderElement.style.borderColor = '#4cc9f0';
-        sliderElement.querySelector('span').style.transform = 'translateX(16px)';
+        sliderElement.querySelector('span').style.transform = 'translateX(20px)';
         sliderElement.querySelector('span').style.backgroundColor = '#4cc9f0';
         switchLabel.style.color = '#4cc9f0';
+        switchContainer.style.boxShadow = '0 2px 12px rgba(76, 201, 240, 0.4)';
         this.processAndAddExplanations(messageContent);
       } else {
         sliderElement.style.backgroundColor = '#2b3240';
-        sliderElement.style.borderColor = '#3a4356';
+        sliderElement.style.borderColor = '#4cc9f0';
         sliderElement.querySelector('span').style.transform = 'translateX(0)';
         sliderElement.querySelector('span').style.backgroundColor = '#8f96a3';
-        switchLabel.style.color = '#8f96a3';
+        switchLabel.style.color = '#4cc9f0';
+        switchContainer.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.4)';
         this.removeExplanations(messageContent);
       }
     });

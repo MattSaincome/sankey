@@ -427,6 +427,15 @@ const buffettWisdomSemanticIntegration = {
   formatInsight: function(insight, textAnalysis, metricAnalysis) {
     if (!insight) return "";
     
+    // Validate that the insight has all required fields to prevent undefined errors
+    if (insight.type === 'quote' && (!insight.quote || !insight.author || !insight.source)) {
+      console.warn('[Buffett Wisdom] Incomplete quote data:', insight);
+      return ""; // Return empty string if missing critical data
+    } else if (insight.type !== 'quote' && (!insight.insight || !insight.year)) {
+      console.warn('[Buffett Wisdom] Incomplete letter insight data:', insight);
+      return ""; // Return empty string if missing critical data
+    }
+    
     const transition = this.generateTransition(insight, textAnalysis, metricAnalysis);
     
     // Add specific metrics context if available
@@ -483,9 +492,12 @@ const buffettWisdomSemanticIntegration = {
     const enhancedTransition = transition + metricsContext;
     
     if (insight.type === 'quote') {
-      return `\n\n**${enhancedTransition}** "${insight.quote}"\n— ${insight.author}, ${insight.source}`;
+      const author = insight.author || 'Warren Buffett';
+      const source = insight.source || 'Investor Insights';
+      return `\n\n**${enhancedTransition}** "${insight.quote}"\n— ${author}, ${source}`;
     } else {
-      return `\n\n**${enhancedTransition}** "${insight.insight}"\n— Warren Buffett, ${insight.year} Annual Letter`;
+      const year = insight.year || 'Annual';
+      return `\n\n**${enhancedTransition}** "${insight.insight}"\n— Warren Buffett, ${year} Annual Letter`;
     }
   },
   
