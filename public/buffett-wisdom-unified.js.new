@@ -1,0 +1,574 @@
+/**
+ * Unified Buffett-Munger Wisdom Access System
+ * 
+ * This file integrates all Buffett-Munger wisdom sources into a single
+ * interface that makes it easy to retrieve relevant investing wisdom
+ * based on company, topic, or financial metrics.
+ * 
+ * The system focuses on providing contextual, high-value insights rather than
+ * overwhelming data, helping users benefit from Buffett and Munger's most
+ * relevant wisdom for their specific investment analysis.
+ */
+
+const buffettWisdomUnified = {
+  // Integration with all Buffett wisdom sources
+  // Track quotes already used in the current conversation to avoid repetition
+  usedQuotesInCurrentConversation: new Set(),
+  
+  // Initialize the wisdom system
+  initialize: function() {
+    // Reset the conversation tracking on initialization
+    this.usedQuotesInCurrentConversation = new Set();
+    
+    // Verify that all required wisdom modules are loaded
+    const requiredModules = [
+      'buffettMungerWisdom',
+      'buffettAnnualLetters',
+      'buffettAnnualLetters2',
+      'buffettAnnualLetters3',
+      'buffettLettersUnified'
+    ];
+    
+    const missingModules = requiredModules.filter(module => !window[module]);
+    
+    if (missingModules.length > 0) {
+      console.error("Missing Buffett wisdom modules:", missingModules.join(', '));
+      return false;
+    }
+    
+    console.log("Buffett Wisdom Unified System initialized successfully");
+    return true;
+  },
+  
+  // Reset the conversation tracking (called when starting a new conversation)
+  resetConversation: function() {
+    this.usedQuotesInCurrentConversation = new Set();
+    console.log("Reset conversation quote tracking");
+  },
+  
+  // Get company-specific investment wisdom (from direct Berkshire investments)
+  getCompanyWisdom: function(ticker) {
+    if (!ticker) return null;
+    
+    // Check our quotable wisdom database first
+    const investmentWisdom = window.buffettMungerWisdom.getInvestmentWisdom(ticker);
+    if (investmentWisdom) {
+      return investmentWisdom;
+    }
+    
+    // No direct investment wisdom found
+    return null;
+  },
+  
+  // Get insights from annual letters by topic - now including the complete unified system
+  getLetterInsightsByTopic: function(topic) {
+    if (!topic) return [];
+    
+    let allInsights = [];
+    
+    // First try the unified letters system (1977-2008) which is most comprehensive
+    if (window.buffettLettersUnified) {
+      try {
+        const unifiedInsights = window.buffettLettersUnified.getInsightsByTopic(topic);
+        if (unifiedInsights && unifiedInsights.length > 0) {
+          allInsights = allInsights.concat(unifiedInsights);
+        }
+      } catch (err) {
+        console.warn("Error accessing unified letters system:", err);
+      }
+    }
+    
+    // Add insights from other letter collections to supplement
+    if (window.buffettAnnualLetters) {
+      const recentInsights = window.buffettAnnualLetters.getInsightsByTopic(topic);
+      allInsights = allInsights.concat(recentInsights);
+    }
+    
+    if (window.buffettAnnualLetters2) {
+      const previousInsights = window.buffettAnnualLetters2.getInsightsByTopic(topic);
+      allInsights = allInsights.concat(previousInsights);
+    }
+    
+    if (window.buffettAnnualLetters3) {
+      const crisisInsights = window.buffettAnnualLetters3.getInsightsByTopic(topic);
+      allInsights = allInsights.concat(crisisInsights);
+    }
+    
+    // Sort by year (most recent first) and remove duplicates
+    allInsights.sort((a, b) => b.year - a.year);
+    
+    // Remove duplicates by creating a map keyed by content
+    const uniqueInsights = Array.from(
+      new Map(allInsights.map(insight => [insight.insight, insight])).values()
+    );
+    
+    return uniqueInsights;
+  },
+  
+  // Get quotes by investing topic or concept
+  getQuotesByTopic: function(topic) {
+    if (!topic) return [];
+    
+    return window.buffettMungerWisdom.getQuotesByTopic(topic);
+  },
+  
+  // Get random wisdom about investing principles
+  getRandomWisdom: function() {
+    const sources = [
+      // Original quotes
+      () => { 
+        const quotes = window.buffettMungerWisdom.getAllQuotes();
+        if (quotes.length === 0) return null;
+        
+        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+        return {
+          type: 'quote',
+          content: randomQuote.quote,
+          author: randomQuote.author,
+          source: randomQuote.source,
+          topic: randomQuote.topic || 'investing'
+        };
+      },
+      
+      // Letter insights
+      () => {
+        // Get a list of all topics we can find insights for
+        const topicSets = [
+          window.buffettAnnualLetters ? window.buffettAnnualLetters.getAllTopics() : [],
+          window.buffettAnnualLetters2 ? window.buffettAnnualLetters2.getAllTopics() : [],
+          window.buffettAnnualLetters3 ? window.buffettAnnualLetters3.getAllTopics() : []
+        ];
+        
+        const allTopics = [].concat(...topicSets);
+        if (allTopics.length === 0) return null;
+        
+        const randomTopic = allTopics[Math.floor(Math.random() * allTopics.length)];
+        
+        // Get insights for this topic
+        const insights = this.getLetterInsightsByTopic(randomTopic);
+        if (insights.length === 0) return null;
+        
+        const randomInsight = insights[Math.floor(Math.random() * insights.length)];
+        return {
+          type: 'letter_insight',
+          content: randomInsight.insight,
+          year: randomInsight.year,
+          topic: randomTopic
+        };
+      }
+    ];
+    
+    // Try each source until we get a non-null result
+    for (let i = 0; i < sources.length; i++) {
+      const wisdom = sources[i]();
+      if (wisdom) return wisdom;
+    }
+    
+    // Fallback if all sources failed
+    return {
+      type: 'quote',
+      content: "Be fearful when others are greedy, and greedy when others are fearful.",
+      author: "Warren Buffett",
+      source: "Shareholder Letter",
+      topic: "market psychology"
+    };
+  },
+  
+  // Get wisdom relevant to a specific financial analysis
+  getWisdomForFinancialAnalysis: function(metrics) {
+    if (!metrics) return [];
+    
+    const results = [];
+    
+    // Check for specific metrics and add relevant wisdom
+    
+    // P/E Ratio
+    if (metrics.pe !== undefined) {
+      let peWisdom = null;
+      
+      // High P/E
+      if (metrics.pe > 20) {
+        peWisdom = {
+          type: 'quote',
+          content: "It's far better to buy a wonderful company at a fair price than a fair company at a wonderful price.",
+          author: "Warren Buffett",
+          source: "1989 Shareholder Letter",
+          topic: "valuation"
+        };
+      }
+      // Low P/E
+      else if (metrics.pe < 10) {
+        peWisdom = {
+          type: 'quote',
+          content: "Price is what you pay. Value is what you get.",
+          author: "Warren Buffett",
+          source: "2008 Shareholder Letter",
+          topic: "valuation"
+        };
+      }
+      
+      if (peWisdom) results.push(peWisdom);
+    }
+    
+    // Return on Equity
+    if (metrics.roe !== undefined) {
+      let roeWisdom = null;
+      
+      // High ROE
+      if (metrics.roe > 15) {
+        roeWisdom = {
+          type: 'quote',
+          content: "We see ROE as a crucial metric for evaluating a business. High returns on equity typically reflect a sustainable competitive advantage that allows companies to invest in growth without requiring additional capital.",
+          author: "Warren Buffett",
+          source: "1987 Shareholder Letter",
+          topic: "return on equity"
+        };
+      }
+      // Low ROE
+      else if (metrics.roe < 10) {
+        roeWisdom = {
+          type: 'quote',
+          content: "When a management with a reputation for brilliance tackles a business with a reputation for bad economics, it is the reputation of the business that remains intact.",
+          author: "Warren Buffett",
+          source: "1989 Shareholder Letter",
+          topic: "business economics"
+        };
+      }
+      
+      if (roeWisdom) results.push(roeWisdom);
+    }
+    
+    // Debt to Equity
+    if (metrics.debtToEquity !== undefined) {
+      let debtWisdom = null;
+      
+      // High Debt
+      if (metrics.debtToEquity > 1.0) {
+        debtWisdom = {
+          type: 'quote',
+          content: "We never want to count on the kindness of strangers in order to meet tomorrow's obligations.",
+          author: "Warren Buffett",
+          source: "2008 Shareholder Letter",
+          topic: "debt"
+        };
+      }
+      // Low Debt
+      else if (metrics.debtToEquity < 0.3) {
+        debtWisdom = {
+          type: 'quote',
+          content: "A good business generates more cash than it consumes. We prefer companies that can fund their own growth without excessive debt.",
+          author: "Warren Buffett",
+          source: "Various Letters",
+          topic: "capital allocation"
+        };
+      }
+      
+      if (debtWisdom) results.push(debtWisdom);
+    }
+    
+    return results;
+  },
+  
+  // Get historical investment comparisons for a company/industry
+  getHistoricalComparisons: function(ticker, industry, metrics) {
+    // If we don't have ticker or industry, we can't make comparisons
+    if (!ticker && !industry) return null;
+    
+    // Try to find similar investments from Buffett's history
+    let comparisons = [];
+    
+    // Check if we have unified letters system available
+    if (window.buffettLettersUnified) {
+      try {
+        // If we have a company/ticker, look for similar companies
+        if (industry) {
+          const industryInsights = window.buffettLettersUnified.getIndustryInsights(industry);
+          if (industryInsights) {
+            comparisons.push({
+              type: 'industry',
+              industry: industry,
+              insights: industryInsights.keyInsights,
+              companies: industryInsights.notableCompanies,
+              source: 'Buffett Letters (1977-2008)'
+            });
+          }
+        }
+        
+        // If metrics are provided, find investments with similar characteristics
+        if (metrics) {
+          // Look for metrics-based comparisons (PE ratio, ROE, etc.)
+          // This is a simplified approach - in reality, you would implement more sophisticated matching
+          if (metrics.pe) {
+            // Find examples of companies Buffett invested in with similar P/E ratios
+            let peComparisons = [];
+            
+            // High P/E (>20)
+            if (metrics.pe > 20) {
+              peComparisons.push({
+                company: "Coca-Cola",
+                year: 1988,
+                comment: "I'm willing to pay up for a business with extraordinary economics." 
+              });
+            }
+            // Medium P/E (10-20)
+            else if (metrics.pe >= 10) {
+              peComparisons.push({
+                company: "American Express",
+                year: 1991,
+                comment: "Our focus is not on P/E ratios but on business quality and growth potential."
+              });
+            }
+            // Low P/E (<10)
+            else if (metrics.pe < 10) {
+              peComparisons.push({
+                company: "Washington Post",
+                year: 1973,
+                comment: "We're willing to buy an extraordinary business at an ordinary price."
+              });
+            }
+            
+            if (peComparisons.length > 0) {
+              comparisons.push({
+                type: 'metrics',
+                metric: 'P/E Ratio',
+                value: metrics.pe,
+                examples: peComparisons
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Error finding historical comparisons:", err);
+      }
+    }
+    
+    return comparisons.length > 0 ? comparisons : null;
+  },
+  
+  // Format wisdom as markdown for inclusion in bot responses with improved context
+  formatWisdomAsMarkdown: function(wisdom) {
+    if (!wisdom) return '';
+    
+    // Generate a unique identifier for this quote to track usage
+    const quoteId = wisdom.type + ':' + (wisdom.content || '').substring(0, 40);
+    
+    // Check if we've already used this quote in the current conversation
+    if (this.usedQuotesInCurrentConversation.has(quoteId)) {
+      return ''; // Don't repeat quotes in the same conversation
+    }
+    
+    // Add to our set of used quotes
+    this.usedQuotesInCurrentConversation.add(quoteId);
+    
+    // Format based on the type of wisdom
+    if (wisdom.type === 'quote') {
+      return `\n\n**On ${wisdom.topic || 'investing'}:** "${wisdom.content}"\n— ${wisdom.author}, ${wisdom.source}`;
+    } else if (wisdom.type === 'letter_insight') {
+      const contextIntro = wisdom.context ? `When discussing ${wisdom.context}, ` : '';
+      return `\n\n**${contextIntro}Warren Buffett wrote in ${wisdom.year}:** "${wisdom.content}"`;
+    } else if (wisdom.type === 'comparison') {
+      // For historical investment comparisons
+      return `\n\n**Similar to ${wisdom.company} (${wisdom.year}):** "${wisdom.comment}"`;
+    }
+    
+    return '';
+  },
+  
+  // Enhanced method to enrich bot responses with relevant Buffett/Munger wisdom
+  enrichBotResponse: function(botResponse, ticker, metrics) {
+    try {
+      if (!botResponse) return '';
+      
+      // Extract industry from the bot response if available
+      const industryRegex = /\b(industry|sector)\s*:\s*([\w\s&]+)\b/i;
+      const industryMatch = botResponse.match(industryRegex);
+      const industry = industryMatch ? industryMatch[2].trim() : null;
+      
+      // First try to find historical comparisons - these are the most valuable insights
+      const comparisons = this.getHistoricalComparisons(ticker, industry, metrics);
+      if (comparisons && comparisons.length > 0) {
+        // Choose the most relevant comparison based on context
+        const comparison = comparisons[0];
+        
+        // For industry comparisons
+        if (comparison.type === 'industry') {
+          // Create a thoughtful analysis based on Buffett's industry experience
+          const companyList = comparison.companies.slice(0, 3).join(', ');
+          const insightIdx = Math.floor(Math.random() * comparison.insights.length);
+          const insight = comparison.insights[insightIdx];
+          
+          const analysisIntro = `\n\n**Buffett's Perspective on ${comparison.industry}:** `;
+          const analysis = `Warren Buffett has extensive experience in the ${comparison.industry} industry through investments in companies like ${companyList}. ${insight} Based on his approach to this industry, focus on understanding the company's competitive position, capital allocation policies, and long-term growth potential rather than short-term market movements.`;
+          
+          return botResponse + analysisIntro + analysis;
+        }
+        
+        // For metrics-based comparisons
+        else if (comparison.type === 'metrics') {
+          const example = comparison.examples[0];
+          const metricsWisdom = {
+            type: 'comparison',
+            company: example.company,
+            year: example.year,
+            comment: example.comment
+          };
+          
+          return botResponse + this.formatWisdomAsMarkdown(metricsWisdom);
+        }
+      }
+      
+      // If we have a ticker, look for company-specific wisdom first
+      if (ticker) {
+        const companyWisdom = this.getCompanyWisdom(ticker);
+        if (companyWisdom && companyWisdom.buffettComment) {
+          const quoteId = `company:${companyWisdom.company}`;
+          
+          // Check if we've already used this quote in the conversation
+          if (!this.usedQuotesInCurrentConversation.has(quoteId)) {
+            this.usedQuotesInCurrentConversation.add(quoteId);
+            
+            // Add context to the quote to make it more valuable
+            const contextIntro = companyWisdom.context ? 
+              `When discussing ${companyWisdom.context}, ` : 
+              `When explaining his investment in ${companyWisdom.company}, `;
+              
+            const buffettQuote = `\n\n**${contextIntro}Warren Buffett said:** "${companyWisdom.buffettComment}"`;
+            
+            let mungerQuote = '';
+            if (companyWisdom.mungerComment) {
+              const mungerQuoteId = `company-munger:${companyWisdom.company}`;
+              if (!this.usedQuotesInCurrentConversation.has(mungerQuoteId)) {
+                this.usedQuotesInCurrentConversation.add(mungerQuoteId);
+                mungerQuote = `\n\n**Charlie Munger added:** "${companyWisdom.mungerComment}"`;
+              }
+            }
+            
+            return botResponse + buffettQuote + mungerQuote;
+          }
+        }
+      }
+      
+      // Determine topics from bot response - more nuanced approach
+      // Prioritize deeper insights rather than surface-level matches
+      const topicMatches = [
+        { keywords: ['valuation', 'intrinsic value', 'price-to-earnings', 'p/e ratio', 'discounted cash flow', 'dcf'], topic: 'valuation', priority: 5 },
+        { keywords: ['competitive advantage', 'moat', 'market position', 'brand value', 'pricing power'], topic: 'competitive advantage', priority: 5 },
+        { keywords: ['management', 'capital allocation', 'leadership', 'ceo', 'executives'], topic: 'management', priority: 4 },
+        { keywords: ['risk', 'debt', 'leverage', 'balance sheet', 'financial strength'], topic: 'risk', priority: 4 },
+        { keywords: ['long-term', 'compounding', 'patience', 'decades', 'growth runway'], topic: 'patience', priority: 3 },
+        { keywords: ['accounting', 'earnings quality', 'financial statements', 'cash flow'], topic: 'accounting', priority: 3 },
+        { keywords: ['circle of competence', 'understanding the business', 'know your limits'], topic: 'circle of competence', priority: 2 },
+        { keywords: ['margin of safety', 'downside protection', 'worst case scenario'], topic: 'margin of safety', priority: 2 }
+      ];
+      
+      // Score topic matches based on the response content
+      const botResponseLower = botResponse.toLowerCase();
+      let topicScores = topicMatches.map(match => {
+        let score = 0;
+        match.keywords.forEach(keyword => {
+          if (botResponseLower.includes(keyword.toLowerCase())) {
+            score += match.priority;
+          }
+        });
+        return { topic: match.topic, score: score };
+      }).filter(t => t.score > 0);
+      
+      // Sort by score and limit to top matches
+      topicScores.sort((a, b) => b.score - a.score);
+      const topTopics = topicScores.slice(0, 2).map(t => t.topic);
+      
+      let wisdomToAdd = null;
+      
+      // If we identified relevant topics, get wisdom related to them
+      if (topTopics.length > 0) {
+        // Select a topic with slight preference for the highest scoring
+        const topicIndex = Math.random() < 0.7 ? 0 : Math.min(1, topTopics.length - 1);
+        const selectedTopic = topTopics[topicIndex];
+        
+        // First try to get an insight from letters as these are usually more substantive
+        const insights = this.getLetterInsightsByTopic(selectedTopic);
+        if (insights && insights.length > 0) {
+          // Find an insight that hasn't been used yet
+          for (let i = 0; i < Math.min(3, insights.length); i++) {
+            const insight = insights[i];
+            const insightId = `letter:${insight.year}:${(insight.insight || '').substring(0, 40)}`;
+            
+            if (!this.usedQuotesInCurrentConversation.has(insightId)) {
+              wisdomToAdd = {
+                type: 'letter_insight',
+                content: insight.insight,
+                year: insight.year,
+                topic: insight.topic || selectedTopic,
+                context: insight.context
+              };
+              break;
+            }
+          }
+        }
+        
+        // If no letter insight, try a quote
+        if (!wisdomToAdd) {
+          const quotes = this.getQuotesByTopic(selectedTopic);
+          if (quotes && quotes.length > 0) {
+            // Find a quote that hasn't been used yet
+            for (let i = 0; i < Math.min(3, quotes.length); i++) {
+              const quote = quotes[i];
+              const quoteId = `quote:${quote.author}:${(quote.quote || '').substring(0, 40)}`;
+              
+              if (!this.usedQuotesInCurrentConversation.has(quoteId)) {
+                wisdomToAdd = {
+                  type: 'quote',
+                  content: quote.quote,
+                  author: quote.author,
+                  source: quote.source,
+                  topic: selectedTopic
+                };
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // If we didn't find topic-specific wisdom, consider financial metrics
+      if (!wisdomToAdd && metrics) {
+        const financialWisdom = this.getWisdomForFinancialAnalysis(metrics);
+        if (financialWisdom && financialWisdom.length > 0) {
+          // Find wisdom that hasn't been used yet
+          for (let i = 0; i < Math.min(3, financialWisdom.length); i++) {
+            const wisdom = financialWisdom[i];
+            const wisdomId = `financial:${(wisdom.content || '').substring(0, 40)}`;
+            
+            if (!this.usedQuotesInCurrentConversation.has(wisdomId)) {
+              wisdomToAdd = wisdom;
+              break;
+            }
+          }
+        }
+      }
+      
+      // Add the wisdom if we found something relevant
+      if (wisdomToAdd) {
+        const formattedWisdom = this.formatWisdomAsMarkdown(wisdomToAdd);
+        if (formattedWisdom) {
+          return botResponse + formattedWisdom;
+        }
+      }
+      
+      // Return original response if no wisdom was added
+      return botResponse;
+      
+    } catch (err) {
+      console.warn('[Buffett Wisdom] Error enriching response:', err);
+      // Return original response if there was an error
+      return botResponse;
+    }
+  }
+};
+
+// Initialize the unified wisdom system when the document is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  buffettWisdomUnified.initialize();
+  // Make it globally available
+  window.buffettWisdomUnified = buffettWisdomUnified;
+});

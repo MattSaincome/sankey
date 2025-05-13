@@ -621,8 +621,17 @@ async function renderValuationWidget(ticker) {
     `;
     document.head.appendChild(style);
     
-    // Add toggle functionality
-    setTimeout(() => {
+    // Wait for rendering to fully complete, ensure no loading messages are visible
+    const waitForRenderComplete = () => {
+      // Check if loading message still exists
+      const loadingMsg = document.querySelector('.valuation-loading');
+      if (loadingMsg) {
+        console.log('[Valuation] Loading message still visible, waiting for complete render...');
+        setTimeout(waitForRenderComplete, 200); // Check again in 200ms
+        return;
+      }
+      
+      // Setup toggle functionality
       const toggle = document.getElementById('explainer-toggle');
       if (toggle) {
         toggle.addEventListener('change', function() {
@@ -638,9 +647,22 @@ async function renderValuationWidget(ticker) {
           }
         });
       }
-    }, 100);
+      
+      // Now that everything is completely rendered and loading message is gone, 
+      // dispatch the event that valuation widget is loaded
+      document.dispatchEvent(new CustomEvent('valuation-widget-loaded'));
+      console.log(`[Valuation] Dispatched valuation-widget-loaded event - ALL METRICS LOADED`);
+    };
+    
+    // Start the render completion check process
+    setTimeout(waitForRenderComplete, 200);
   } catch (err) {
     container.innerHTML = '<div class="valuation-error">Failed to load valuation metrics.</div>';
+    // Even on error, dispatch the event that the widget has finished loading
+    setTimeout(() => {
+      document.dispatchEvent(new CustomEvent('valuation-widget-loaded'));
+      console.log(`[Valuation] Dispatched valuation-widget-loaded event (after error)`);
+    }, 100);
   }
 }
 

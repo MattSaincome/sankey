@@ -1,5 +1,98 @@
 // Front-end logic to fetch data and render Sankey chart
 
+// --- Dynamic Start Investor Chat Button Logic ---
+// --- Value Investor Bot Button & Message State Logic ---
+
+const BUFFET_QUOTE = "I'm a value investor trained in the discipline of Warren Buffet, Charlie Munger, and Ben Graham. Let's wait for a fat pitch -- there are no called strikes on Wall Street.";
+const READY_NOTE = "I've digested all financial information about this company, and can see everything in the app you see.";
+
+function setInvestorChatButtonInitial() {
+  // Stage 1: Idle/Stable (no ticker searched)
+  const btn = document.getElementById('start-investor-chat');
+  if (!btn) return;
+  btn.disabled = true;
+  const btnText = btn.querySelector('.btn-text');
+  const loadingDots = btn.querySelector('#investor-bot-loading');
+  const readyLight = btn.querySelector('#investor-bot-ready');
+  if (btnText) btnText.textContent = 'Start conversation!';
+  if (loadingDots) loadingDots.style.display = 'none';
+  if (readyLight) readyLight.style.display = 'none';
+  // Message logic
+  const mainMsg = document.querySelector('#value-bot-message .main-message');
+  if (mainMsg) mainMsg.textContent = BUFFET_QUOTE;
+  const note = document.getElementById('bot-ready-note');
+  if (note) note.style.display = 'none';
+}
+
+function setInvestorChatButtonLoading(ticker) {
+  // Stage 2: Ticker searched, loading
+  const btn = document.getElementById('start-investor-chat');
+  if (!btn) return;
+  btn.disabled = true;
+  const btnText = btn.querySelector('.btn-text');
+  const loadingDots = btn.querySelector('#investor-bot-loading');
+  const readyLight = btn.querySelector('#investor-bot-ready');
+  let loadingMsg = 'Digging through the books!';
+  if (ticker) {
+    loadingMsg = `Digging through ${ticker.toUpperCase()}'s books!`;
+  }
+  if (btnText) btnText.textContent = loadingMsg;
+  if (loadingDots) loadingDots.style.display = 'inline-block';
+  if (readyLight) readyLight.style.display = 'none';
+  // Message logic
+  const mainMsg = document.querySelector('#value-bot-message .main-message');
+  if (mainMsg) mainMsg.textContent = BUFFET_QUOTE;
+  const note = document.getElementById('bot-ready-note');
+  if (note) note.style.display = 'none';
+}
+
+function setInvestorChatButtonReady() {
+  // Stage 3: Valuation loaded, ready
+  const btn = document.getElementById('start-investor-chat');
+  if (!btn) return;
+  btn.disabled = false;
+  const btnText = btn.querySelector('.btn-text');
+  const loadingDots = btn.querySelector('#investor-bot-loading');
+  const readyLight = btn.querySelector('#investor-bot-ready');
+  if (btnText) btnText.textContent = 'Start conversation!';
+  if (loadingDots) loadingDots.style.display = 'none';
+  if (readyLight) readyLight.style.display = 'inline-block';
+  // Message logic
+  const mainMsg = document.querySelector('#value-bot-message .main-message');
+  if (mainMsg) mainMsg.textContent = BUFFET_QUOTE;
+  const note = document.getElementById('bot-ready-note');
+  if (note) {
+    note.textContent = READY_NOTE;
+    note.style.display = 'block';
+  }
+}
+
+// Initial state: idle
+// On page load, set to initial state
+// On search form reset, set to initial state
+// On ticker search, set to loading
+// On valuation-widget-loaded, set to ready
+
+document.addEventListener('DOMContentLoaded', () => {
+  setInvestorChatButtonInitial();
+});
+
+document.getElementById('search-form')?.addEventListener('reset', () => {
+  setInvestorChatButtonInitial();
+});
+
+document.addEventListener('ticker-changed', (e) => {
+  // Try to get ticker from event detail
+  let ticker = (e && e.detail && e.detail.ticker) ? e.detail.ticker : '';
+  setInvestorChatButtonLoading(ticker);
+});
+
+document.addEventListener('valuation-widget-loaded', () => {
+  setInvestorChatButtonReady();
+});
+
+// Only allow button click when enabled
+
 // --- Debounce helper ---
 function debounce(func, wait) {
   let timeout;
@@ -28,10 +121,11 @@ document.getElementById('ticker').addEventListener('input', debounce(async (e) =
   }
 }, 300));
 
-document.getElementById('submit').addEventListener('click', async () => {
-  // Extract raw input and resolve to ticker symbol
+document.getElementById('submit').addEventListener('click', async function(event) {
+  event.preventDefault();
   let raw = document.getElementById('ticker').value.trim();
   if (!raw) return alert('Please enter a ticker symbol.');
+  
   let ticker;
   // If selected from suggestions 'SYMB - Name'
   if (raw.includes(' - ')) {
@@ -53,11 +147,15 @@ document.getElementById('submit').addEventListener('click', async () => {
   } else {
     ticker = raw.toUpperCase();
   }
+  
   // Continue with resolved ticker
   if (!ticker) {
     alert('Please enter a ticker symbol.');
     return;
   }
+  
+  // Dispatch custom event that ticker has changed
+  document.dispatchEvent(new CustomEvent('ticker-changed', { detail: { ticker } }));
   
   // Show loading indicator
   const loadingEl = document.getElementById('loading') || createLoadingElement();
@@ -73,6 +171,11 @@ document.getElementById('submit').addEventListener('click', async () => {
       await renderSankey(data, ticker);
       if (window.renderCompetitorsWidget) {
         renderCompetitorsWidget(ticker);
+        // Dispatch event that competitors widget is loaded
+        setTimeout(() => {
+          document.dispatchEvent(new CustomEvent('competitors-widget-loaded'));
+          console.log(`[Chart] Dispatched competitors-widget-loaded event`);
+        }, 500);
       }
       // Populate the competitor charts bar with up to 4 competitors
       window.updateCompetitorChartsBar = async function (ticker) {
@@ -127,7 +230,10 @@ document.getElementById('submit').addEventListener('click', async () => {
       }
       updateCompetitorChartsBar(ticker);
       if (window.renderValuationWidget) {
-        renderValuationWidget(ticker);
+        // Let the valuation.js file handle its own event dispatching when actually done rendering
+        renderValuationWidget(ticker, data);
+        // We no longer dispatch the event here, it will be dispatched by valuation.js
+        // This ensures better timing accuracy for when metrics are actually available
       }
       loadingEl.style.display = 'none';
     } else {

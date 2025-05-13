@@ -427,56 +427,51 @@ const buffettWisdomSemanticIntegration = {
   formatInsight: function(insight, textAnalysis, metricAnalysis) {
     if (!insight) return "";
     
-    // Validate that the insight has all required fields to prevent undefined errors
-    if (insight.type === 'quote' && (!insight.quote || !insight.author || !insight.source)) {
-      console.warn('[Buffett Wisdom] Incomplete quote data:', insight);
-      return ""; // Return empty string if missing critical data
-    } else if (insight.type !== 'quote' && (!insight.insight || !insight.year)) {
-      console.warn('[Buffett Wisdom] Incomplete letter insight data:', insight);
+    // Safety check - ensure we have a valid quote/insight to work with
+    if ((insight.type === 'quote' && !insight.quote) || 
+        (insight.type !== 'quote' && !insight.insight)) {
+      console.warn("[Buffett Wisdom] Incomplete wisdom data:", insight);
       return ""; // Return empty string if missing critical data
     }
     
+    // Generate appropriate transition
     const transition = this.generateTransition(insight, textAnalysis, metricAnalysis);
     
-    // Add specific metrics context if available
-    let metricsContext = '';
+    // Add relevant metrics to the context if available
+    let metricsContext = "";
     if (metricAnalysis && metricAnalysis.keyMetrics) {
-      // Extract the relevant metrics based on the insight category
       const relevantMetrics = [];
       
-      if (insight.categories) {
+      // Check if this insight is related to specific metrics
+      if (insight.categories && insight.categories.financialMetrics) {
         // Check if this is ROE/ROIC related
-        if (insight.categories.financialMetrics && 
-            (insight.categories.financialMetrics.includes('return_on_equity') || 
-             insight.categories.financialMetrics.includes('return_on_capital'))) {
-          if (metricAnalysis.keyMetrics.RETURN_ON_EQUITY) {
-            relevantMetrics.push(`ROE of ${metricAnalysis.keyMetrics.RETURN_ON_EQUITY.value.toFixed(2)}%`);
+        if (insight.categories.financialMetrics.includes('return_on_equity') || 
+            insight.categories.financialMetrics.includes('return_on_capital')) {
+          if (metricAnalysis.keyMetrics.ROE && metricAnalysis.keyMetrics.ROE.value) {
+            relevantMetrics.push(`ROE of ${metricAnalysis.keyMetrics.ROE.value.toFixed(2)}%`);
           }
-          if (metricAnalysis.keyMetrics.RETURN_ON_CAPITAL) {
-            relevantMetrics.push(`ROIC of ${metricAnalysis.keyMetrics.RETURN_ON_CAPITAL.value.toFixed(2)}%`);
+          if (metricAnalysis.keyMetrics.ROIC && metricAnalysis.keyMetrics.ROIC.value) {
+            relevantMetrics.push(`ROIC of ${metricAnalysis.keyMetrics.ROIC.value.toFixed(2)}%`);
           }
         }
         
         // Check if this is PE ratio related
-        if (insight.categories.financialMetrics && 
-            insight.categories.financialMetrics.includes('pe_ratio')) {
-          if (metricAnalysis.keyMetrics.PE_RATIO) {
+        if (insight.categories.financialMetrics.includes('pe_ratio')) {
+          if (metricAnalysis.keyMetrics.PE_RATIO && metricAnalysis.keyMetrics.PE_RATIO.value) {
             relevantMetrics.push(`P/E ratio of ${metricAnalysis.keyMetrics.PE_RATIO.value.toFixed(2)}`);
           }
         }
         
         // Check if this is debt related
-        if (insight.categories.financialMetrics && 
-            insight.categories.financialMetrics.includes('debt_levels')) {
-          if (metricAnalysis.keyMetrics.DEBT_LEVELS) {
+        if (insight.categories.financialMetrics.includes('debt_levels')) {
+          if (metricAnalysis.keyMetrics.DEBT_LEVELS && metricAnalysis.keyMetrics.DEBT_LEVELS.value) {
             relevantMetrics.push(`debt-to-equity ratio of ${metricAnalysis.keyMetrics.DEBT_LEVELS.value.toFixed(2)}`);
           }
         }
         
         // Check if this is margin related
-        if (insight.categories.financialMetrics && 
-            insight.categories.financialMetrics.includes('profit_margin')) {
-          if (metricAnalysis.keyMetrics.PROFIT_MARGIN) {
+        if (insight.categories.financialMetrics.includes('profit_margin')) {
+          if (metricAnalysis.keyMetrics.PROFIT_MARGIN && metricAnalysis.keyMetrics.PROFIT_MARGIN.value) {
             relevantMetrics.push(`profit margin of ${metricAnalysis.keyMetrics.PROFIT_MARGIN.value.toFixed(2)}%`);
           }
         }
@@ -491,13 +486,33 @@ const buffettWisdomSemanticIntegration = {
     // Add metrics context to the transition
     const enhancedTransition = transition + metricsContext;
     
+    // Ensure quotes are not truncated by checking their length
     if (insight.type === 'quote') {
       const author = insight.author || 'Warren Buffett';
       const source = insight.source || 'Investor Insights';
-      return `\n\n**${enhancedTransition}** "${insight.quote}"\n— ${author}, ${source}`;
+      const year = insight.year || '';
+      let quote = insight.quote || "";
+      
+      // Ensure quote isn't too long - max 400 chars
+      if (quote.length > 400) {
+        quote = quote.substring(0, 397) + "...";
+      }
+      
+      // Format the source text with year if available
+      let sourceText = source;
+      if (year) sourceText += `, ${year}`;
+      
+      return `\n\n**${enhancedTransition}** "${quote}"\n— ${author}, ${sourceText}`;
     } else {
       const year = insight.year || 'Annual';
-      return `\n\n**${enhancedTransition}** "${insight.insight}"\n— Warren Buffett, ${year} Annual Letter`;
+      let letterInsight = insight.insight || "";
+      
+      // Ensure letter insight isn't too long - max 400 chars
+      if (letterInsight.length > 400) {
+        letterInsight = letterInsight.substring(0, 397) + "...";
+      }
+      
+      return `\n\n**${enhancedTransition}** "${letterInsight}"\n— Warren Buffett, ${year} Annual Letter`;
     }
   },
   
