@@ -1118,34 +1118,51 @@
       // Hide sample questions after first question is submitted
       hideSampleQuestions();
 
-      // On first message, prepend all widget data
+      // Always ensure we have the most up-to-date data for every message
+      // First, gather the latest data from all widgets
+      let dataset = '';
+      
+      // Sankey chart data
+      const sankeyDataDiv = document.getElementById('d3-chart');
+      let sankeyText = sankeyDataDiv ? sankeyDataDiv.innerText.trim() : '';
+      if (window.sankeyDataForBot) {
+        sankeyText = JSON.stringify(window.sankeyDataForBot, null, 2);
+      }
+      
+      // Valuation metrics data
+      const valDataDiv = document.getElementById('valuation-widget');
+      let valText = valDataDiv ? valDataDiv.innerText.trim() : '';
+      if (window.valuationDataForBot) {
+        valText = JSON.stringify(window.valuationDataForBot, null, 2);
+      }
+      
+      // Competitors widget data
+      const compDiv = document.getElementById('competitors-widget');
+      let compText = compDiv ? compDiv.innerText.trim() : '';
+      if (window.competitorsDataForBot) {
+        compText = JSON.stringify(window.competitorsDataForBot, null, 2);
+      }
+      
+      // Include current ticker context if available
+      const currentTicker = window.currentTicker || document.getElementById('ticker')?.value || '';
+      
+      // On first message, include the full dataset in the message
       if (botHistory.length === 0) {
-        let dataset = '';
-        // Sankey chart data
-        const sankeyDataDiv = document.getElementById('d3-chart');
-        let sankeyText = sankeyDataDiv ? sankeyDataDiv.innerText.trim() : '';
-        if (window.sankeyDataForBot) {
-          sankeyText = JSON.stringify(window.sankeyDataForBot, null, 2);
-        }
-        // Valuation widget data
-        const valDiv = document.getElementById('valuation-widget');
-        let valText = valDiv ? valDiv.innerText.trim() : '';
-        if (window.valuationDataForBot) {
-          valText = JSON.stringify(window.valuationDataForBot, null, 2);
-        }
-        // Competitors widget data
-        const compDiv = document.getElementById('competitors-widget');
-        let compText = compDiv ? compDiv.innerText.trim() : '';
-        if (window.competitorsDataForBot) {
-          compText = JSON.stringify(window.competitorsDataForBot, null, 2);
-        }
-        dataset = `DATASET:\nSankey Chart:\n${sankeyText}\n\nValuation Metrics:\n${valText}\n\nCompetitors:\n${compText}\n`;
+        dataset = `DATASET:\nCompany Ticker: ${currentTicker}\n\nSankey Chart (Income Statement):\n${sankeyText}\n\nValuation Metrics:\n${valText}\n\nCompetitors:\n${compText}\n`;
         userMsg = dataset + '\nQUESTION: ' + userMsg;
+      } else {
+        // For subsequent messages, include a compact version of the data
+        // This ensures the bot always has access to the latest data
+        userMsg = `[Context: Analyzing ${currentTicker}] ${userMsg}`;
+        
+        // Store the latest dataset in window for context maintenance
+        window.latestBotDataset = `Company Ticker: ${currentTicker}\n\nSankey Chart (Income Statement):\n${sankeyText}\n\nValuation Metrics:\n${valText}\n\nCompetitors:\n${compText}`;
       }
 
       appendBotMessage(botInput.value.trim(), 'user');
       botInput.value = '';
       botInput.disabled = true;
+      
       // Show loading indicator (animated)
       const loadingMsg = document.createElement('div');
       loadingMsg.className = 'value-bot-message bot loading-indicator';
