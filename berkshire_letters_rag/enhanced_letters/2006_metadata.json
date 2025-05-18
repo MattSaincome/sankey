@@ -1,0 +1,29 @@
+{
+  "year": 2006,
+  "filename": "2006_2006ltr.pdf",
+  "file_path": "berkshire_letters_rag/letters_raw\\2006_2006ltr.pdf",
+  "word_count": 14526,
+  "character_count": 91058,
+  "paragraph_count": 3,
+  "has_tables": true,
+  "tables": [
+    {
+      "id": "table_1",
+      "content": "$52660 $46896 $44142",
+      "start_pos": 34135,
+      "end_pos": 34155
+    }
+  ],
+  "identified_sections": [
+    {
+      "index": 0,
+      "type": "operations",
+      "text": "Note: The following table appears in the printed Annual Report on the facing page of the Chairman's ..."
+    },
+    {
+      "index": 2,
+      "type": "financial_performance",
+      "text": "Operating expenses (including depreciation of $823 in 2006, $699 in 2005 and $676 in 2004)............."
+    }
+  ]
+}

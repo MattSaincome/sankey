@@ -1,0 +1,57 @@
+{
+  "year": 2014,
+  "filename": "2014_2014ltr.pdf",
+  "file_path": "berkshire_letters_rag/letters_raw\\2014_2014ltr.pdf",
+  "word_count": 28841,
+  "character_count": 154345,
+  "paragraph_count": 9,
+  "has_tables": true,
+  "tables": [
+    {
+      "id": "table_1",
+      "content": "$1294 $42454 $37231",
+      "start_pos": 39713,
+      "end_pos": 39732
+    },
+    {
+      "id": "table_2",
+      "content": "$2668 $3089 $83921",
+      "start_pos": 40070,
+      "end_pos": 40088
+    },
+    {
+      "id": "table_3",
+      "content": "$23239 $22014 $20835",
+      "start_pos": 49906,
+      "end_pos": 49926
+    },
+    {
+      "id": "table_4",
+      "content": "$97689 $93472 $81432",
+      "start_pos": 52212,
+      "end_pos": 52232
+    }
+  ],
+  "identified_sections": [
+    {
+      "index": 0,
+      "type": "operations",
+      "text": "Berkshire\u2019s Performance vs. the S&P 500 Annual Percentage Change Year in Per-Share Book Value of Ber..."
+    },
+    {
+      "index": 4,
+      "type": "financial_performance",
+      "text": "$77240 * * * * * * * * * * * * Simply put, insurance is the sale of promises. The \u201ccustomer\u201d pays mo..."
+    },
+    {
+      "index": 6,
+      "type": "financial_performance",
+      "text": "Operating expenses . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ...."
+    },
+    {
+      "index": 8,
+      "type": "investments",
+      "text": "Operating expenses . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ...."
+    }
+  ]
+}

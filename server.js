@@ -3,6 +3,9 @@ const fetch = require('node-fetch');
 const path = require('path');
 const express = require('express');
 
+// Import Buffett wisdom integration for enhanced responses
+const buffettWisdom = require('./berkshire_letters_rag/buffett_wisdom');
+
 const app = express();
 // Create a dedicated router for API endpoints
 const apiRouter = express.Router();
@@ -626,41 +629,72 @@ apiRouter.post('/value-investor-bot', async (req, res) => {
       return res.status(400).json({ error: 'Message is required' });
     }
 
+    // Retrieve relevant Buffett wisdom based on the user's message
+    let buffettContext = "";
+    try {
+      console.log(`[BuffettWisdom] Retrieving wisdom for query: ${message.substring(0, 50)}...`);
+      const wisdom = await buffettWisdom.getBuffettWisdom(message, { topK: 3 });
+      
+      if (wisdom && wisdom.results && wisdom.results.length > 0) {
+        // Format the wisdom results into a context string
+        buffettContext = "\n\nRelevant insights from Warren Buffett's shareholder letters:\n";
+        wisdom.results.forEach((item, index) => {
+          buffettContext += `\n[${item.year}] ${item.text}\n`;
+        });
+        console.log(`[BuffettWisdom] Found ${wisdom.results.length} relevant insights`);
+      }
+    } catch (err) {
+      console.error('[BuffettWisdom] Error retrieving Buffett wisdom:', err);
+      // Continue even if there's an error retrieving Buffett wisdom
+    }
+
     console.log(`[OpenAI] Sending message to OpenAI: ${message.substring(0, 50)}...`);
     console.log(`[OpenAI] Conversation history length: ${history.length}`);
     
     // Prepare system message that defines Warren Buffett's persona
     const systemMessage = {
       role: 'system',
-      content: `You are simulating Warren Buffett analyzing a specific company and its peers based on user-supplied data.
-      
-You have comprehensive knowledge of everything Buffett has publicly written, said, or endorsed, including annual shareholder letters, interviews, speeches, and investing principles. 
+      content: `You are Warren Buffett, the legendary investor and CEO of Berkshire Hathaway, analyzing companies and investment opportunities.
 
-Respond in Buffett's voice, mannerisms, and investment philosophy, focusing on:
-- Long-term value investing
-- Intrinsic value calculation
-- Business quality assessment
-- Management integrity evaluation
+You have access to a knowledge base containing all of your annual shareholder letters from 1977 to 2023, which will be automatically integrated into your responses. Draw heavily from these authentic writings for your analysis, quoting and referencing specific letters when appropriate. Your responses should match the exact style, principles, and wisdom found in these letters.
 
-For each answer, briefly (in 1-2 sentences) explain your value investing philosophy or reasoning behind your analysis, in a way that's educational but not verbose. The goal is to help the user understand why you think the way you do, without overwhelming them with detail.
+Analyze all questions from the perspective of your core value investing principles, focusing on:
+- Intrinsic value calculation and margin of safety
+- Quality management with excellent capital allocation records
+- Durable competitive advantages ('moats') that protect businesses from competition
+- Consistent, predictable earnings and high returns on equity
+- Conservative financial practices and avoidance of excessive debt
+- Circle of competence - only investing in businesses you understand
 
-Communicate concisely, giving only the most essential information Warren Buffett would mention if reviewing a company's financials in person. 
-- Avoid fluff, emojis, or excessive explanation
-- Use clear, straightforward insights
-- Use folksy metaphors and anecdotes sparingly and only when truly illustrative
-- Focus on the specific company under analysis and its direct competitors
-- Avoid broad market commentary, speculation, or general investing advice
-- Do not engage in short-term trading commentary or technical analysis
-- Frame everything in terms of what Buffett would likely think or do based on the data provided
+When responding:
+- Use your authentic voice - direct, folksy, plainspoken with occasional self-deprecating humor
+- Incorporate the same metaphors, analogies and examples you use in your letters
+- Express skepticism about speculation, market timing, and Wall Street fads
+- Emphasize long-term ownership of wonderful businesses at fair prices
+- Reference your actual investing history and Berkshire's major holdings when relevant
+- Use your famous analogies (like Mr. Market, baseball's "no called strikes", etc.)
 
-IMPORTANT: You're a value investor bot analyzing the financial data presented in the application.`
+Avoid:
+- Technical analysis, complex financial jargon, or mathematical formulas
+- Short-term stock price predictions or market timing advice
+- Recommendations about cryptocurrency, NFTs, or investments you've publicly dismissed
+- Generic investing advice not rooted in your specific approach
+
+Focus on the specific company under analysis and its direct competitors. Avoid broad market commentary, speculation, or general investing advice. Do not engage in short-term trading commentary or technical analysis.
+
+IMPORTANT: You're a value investor bot analyzing financial data through the lens of Warren Buffett's authentic approach, drawing directly from your extensive writing and principles developed over decades at Berkshire Hathaway.`
     };
 
     // Create a conversation including the system message, history, and new user message
+    // If we have Buffett wisdom, append it to the user message
+    const userMessage = buffettContext 
+      ? `${message}${buffettContext}\n\nPlease incorporate these insights from Buffett's actual writings into your response when relevant, but keep your overall response concise and focused on answering my question.` 
+      : message;
+      
     const messages = [
       systemMessage,
       ...history,
-      { role: 'user', content: message }
+      { role: 'user', content: userMessage }
     ];
 
     console.log('[OpenAI] Preparing to call OpenAI API');
@@ -772,8 +806,32 @@ IMPORTANT: You're a value investor bot analyzing the financial data presented in
       console.log(`[OpenAI] Received response from OpenAI: ${data.choices?.[0]?.message?.content?.substring(0, 50)}...`);
       
       if (data.choices && data.choices[0] && data.choices[0].message) {
+        // Get the base response from OpenAI
+        const baseResponse = data.choices[0].message.content;
+        
+        try {
+          // Check if the query is investment/value oriented to enhance with Buffett wisdom
+          const isInvestmentQuery = /invest|value|stock|market|buffett|berkshire|portfolio|business|company|management|acquisition|intrinsic value|moat|margin of safety/i.test(message);
+          
+          if (isInvestmentQuery) {
+            console.log('[BuffettWisdom] Enhancing response with wisdom from Berkshire letters');
+            
+            // Enhance the response with authentic Buffett wisdom from annual letters
+            const enhancedResponse = await buffettWisdom.enhanceResponseWithBuffettWisdom(message, baseResponse);
+            
+            // Return the enhanced response
+            return res.json({
+              reply: enhancedResponse,
+              source: 'Includes insights from Berkshire Hathaway annual letters'
+            });
+          }
+        } catch (wisdomError) {
+          // If enhancement fails, log the error but continue with the base response
+          console.error('[BuffettWisdom] Error enhancing response:', wisdomError);
+        }
+        
         // Return with 'reply' property to match what the client expects
-        return res.json({ reply: data.choices[0].message.content });
+        return res.json({ reply: baseResponse });
       } else {
         console.error('[OpenAI] Unexpected response format:', JSON.stringify(data));
         return res.status(500).json({ error: 'Unexpected response format from OpenAI.' });
@@ -805,6 +863,61 @@ IMPORTANT: You're a value investor bot analyzing the financial data presented in
       reply: "Sorry, I encountered an unexpected issue while analyzing the financial data. Please try again with a different question.",
       error: 'server_error',
       message: err.message
+    });
+  }
+});
+
+// Buffett Investment Principles API endpoint
+apiRouter.get('/buffett-principles', async (req, res) => {
+  try {
+    console.log('[BuffettWisdom] Principles endpoint called');
+    
+    // Get investment principles from Buffett's letters
+    const principles = await buffettWisdom.getInvestmentPrinciples();
+    
+    if (!principles || !principles.length) {
+      return res.status(200).json({
+        principles: [],
+        message: "Unable to retrieve Buffett's investment principles at this time."
+      });
+    }
+    
+    return res.json({
+      principles: principles,
+      count: principles.length
+    });
+  } catch (err) {
+    console.error('[BuffettWisdom] Error retrieving principles:', err);
+    return res.status(200).json({
+      principles: [],
+      error: "There was an issue retrieving Buffett's investment principles."
+    });
+  }
+});
+
+// Direct Berkshire Letter Query API
+apiRouter.post('/buffett-wisdom', async (req, res) => {
+  try {
+    const { query, topK = 3, filters = {} } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+    
+    console.log(`[BuffettWisdom] Wisdom query: "${query.substring(0, 50)}${query.length > 50 ? '...' : ''}"`);
+    
+    // Get wisdom based on query
+    const wisdom = await buffettWisdom.getBuffettWisdom(query, {
+      topK: parseInt(topK, 10),
+      filters
+    });
+    
+    return res.json(wisdom);
+  } catch (err) {
+    console.error('[BuffettWisdom] Error processing wisdom query:', err);
+    return res.status(200).json({
+      found: false,
+      error: "There was an issue retrieving insights from Buffett's letters."
     });
   }
 });

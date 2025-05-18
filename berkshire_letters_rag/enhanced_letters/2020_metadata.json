@@ -1,0 +1,17 @@
+{
+  "year": 2020,
+  "filename": "2020_2020ltr.pdf",
+  "file_path": "berkshire_letters_rag/letters_raw\\2020_2020ltr.pdf",
+  "word_count": 11843,
+  "character_count": 53256,
+  "paragraph_count": 1,
+  "has_tables": false,
+  "tables": [],
+  "identified_sections": [
+    {
+      "index": 0,
+      "type": "investments",
+      "text": "Berkshire\u2019s Performance vs. the S&P 500 Annual Percentage Change Year in Per-Share Market Value of B..."
+    }
+  ]
+}

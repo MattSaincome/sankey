@@ -1,0 +1,17 @@
+{
+  "year": 2003,
+  "filename": "2003_2003ltr.pdf",
+  "file_path": "berkshire_letters_rag/letters_raw\\2003_2003ltr.pdf",
+  "word_count": 13230,
+  "character_count": 85982,
+  "paragraph_count": 1,
+  "has_tables": false,
+  "tables": [],
+  "identified_sections": [
+    {
+      "index": 0,
+      "type": "financial_performance",
+      "text": "2 Note: The following table appears in the printed Annual Report on the facing page of the Chairman'..."
+    }
+  ]
+}
