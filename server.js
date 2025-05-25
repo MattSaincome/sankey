@@ -3,9 +3,6 @@ const fetch = require('node-fetch');
 const path = require('path');
 const express = require('express');
 
-// Import Buffett wisdom integration for enhanced responses
-const buffettWisdom = require('./berkshire_letters_rag/buffett_wisdom');
-
 const app = express();
 // Create a dedicated router for API endpoints
 const apiRouter = express.Router();
@@ -377,44 +374,57 @@ apiRouter.post('/value-investor-bot', express.json(), async (req, res) => {
   if (!userMessage) return res.status(400).json({ error: 'Message is required.' });
 
   // Compose messages array for OpenAI
+  // --- Wisdom-enhanced system prompt for OpenAI ---
+  let systemPrompt = `You are a value investor bot trained on the writings, letters, and public remarks of Warren Buffett and Charlie Munger. Your task is to answer questions in a conversational, narrative style, weaving in at least one direct, sourced quote from the provided wisdom into your main answer when possible. Use natural language to introduce quotes (e.g., "as Buffett wrote in his 1997 letter..."). Only use a separate 'Relevant Quotes' section if a quote cannot be smoothly integrated. Never present summaries or paraphrases as quotes—clearly label them as insights if needed. Minimize bullet points unless they improve clarity. Always cite the source and year for every quote used.`;
+
+  // Fetch wisdom from the local API (internal call)
+  let wisdomChunks = [];
+  try {
+    // Expand query for companies to include ticker and synonyms if possible
+    let expandedQuery = userMessage;
+    // Simple regex to extract "Apple" and "AAPL" style queries
+    const companyMatch = userMessage.match(/([A-Za-z ]+)(\(|\[)?([A-Z]{1,5})(\)|\])?/);
+    if (companyMatch) {
+      const companyName = companyMatch[1].trim();
+      const ticker = companyMatch[3]?.trim();
+      if (companyName && ticker) {
+        expandedQuery = `${companyName} ${ticker} ${userMessage}`;
+      }
+    }
+    const wisdomRes = await fetch('http://localhost:8000/search_wisdom', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: expandedQuery, top_k: 10 })
+    });
+    if (wisdomRes.ok) {
+      const wisdomData = await wisdomRes.json();
+      if (Array.isArray(wisdomData.results) && wisdomData.results.length > 0) {
+        wisdomChunks = wisdomData.results.map(chunk =>
+          `"${chunk.chunk_text.trim()}" — [Source: ${chunk.source_file}, ${chunk.year}]`
+        );
+        systemPrompt += '\n\nRelevant wisdom for this question:';
+        wisdomChunks.forEach((w, i) => {
+          systemPrompt += `\n${i + 1}. ${w}`;
+        });
+        // Add a markdown-formatted block for the quotes to ensure they are always visible in the answer
+        systemPrompt += '\n\n---\nIf you do not cite these quotes in your answer, append the following markdown section at the end of your response so the user always sees them:';
+        systemPrompt += '\n```markdown\n**Relevant Berkshire/Buffett Quotes:**';
+        wisdomChunks.forEach((w, i) => {
+          systemPrompt += `\n${i + 1}. ${w}`;
+        });
+        systemPrompt += '\n```';
+      }
+    } else {
+      console.error('[BuffettWisdom] Wisdom API error:', wisdomRes.status, await wisdomRes.text());
+    }
+  } catch (err) {
+    console.error('[BuffettWisdom] Wisdom API fetch failed:', err);
+  }
+
   const messages = [
-    { 
-      role: 'system', 
-      content: `You are a Value Investor Bot that analyzes financial data with the wisdom of Warren Buffett, Charlie Munger, and Benjamin Graham.  
-
-When analyzing financial statements and company data:
-1. Focus on the fundamentals and intrinsic value of the company
-2. Analyze income statements, balance sheets, and cash flows thoroughly
-3. Identify competitive advantages (moats) and sustainable business models
-4. Apply a margin of safety principle in all analysis
-5. Consider the quality of management and capital allocation decisions
-6. Evaluate industry trends and competitive positioning
-7. Assess return on invested capital (ROIC) and return on equity (ROE)
-8. Highlight free cash flow generation and capital structure
-9. Emphasize long-term thinking over short-term market fluctuations
-10. Express insights clearly, educationally, and with specific examples
-
-Value Investing Principles to incorporate:
-- "Price is what you pay, value is what you get" (Buffett)
-- "It's far better to buy a wonderful company at a fair price than a fair company at a wonderful price" (Buffett)
-- "Our favorite holding period is forever" (Buffett)
-- "The first rule of investment is don't lose. The second rule is don't forget rule number one" (Buffett)
-- "I don't look to jump over 7-foot bars: I look around for 1-foot bars that I can step over" (Buffett)
-- "Wide diversification is only required when investors do not understand what they are doing" (Buffett)
-- "The best business returns are usually achieved by companies that are doing something quite similar today to what they were doing five or ten years ago" (Munger)
-- "A great business at a fair price is superior to a fair business at a great price" (Munger)
-- "All intelligent investing is value investing" (Graham)
-- "In the short run, the market is a voting machine but in the long run, it is a weighing machine" (Graham)
-
-Additional Guidance:
-- When appropriate, highlight both positive and negative signals in the data, and explain why Buffett (or Munger/Graham) would care about them.
-- Make responses accessible to beginners. Briefly explain value investing principles, and use examples of good and bad company traits to help the user learn.
-- Stay concise and focused on the user's query, but don't miss opportunities to enrich and educate.
-- Note that while you deeply respect Buffett and Munger's perspectives, you acknowledge there are different valid investment approaches beyond value investing.
-- Always analyze the current data provided in each request - do not rely solely on history.
-- Respond immediately to the current question with the current data provided.
-
-Be concise, frank, and direct—like a human trying to get a point across. Cut to the chase, avoid repetition, and don't sugarcoat. Favor short, punchy sentences.`
+    {
+      role: 'system',
+      content: systemPrompt
     },
     { role: 'user', content: userMessage }
   ];
@@ -633,7 +643,7 @@ apiRouter.post('/value-investor-bot', async (req, res) => {
     let buffettContext = "";
     try {
       console.log(`[BuffettWisdom] Retrieving wisdom for query: ${message.substring(0, 50)}...`);
-      const wisdom = await buffettWisdom.getBuffettWisdom(message, { topK: 3 });
+      const wisdom = await getBuffettWisdom(message, { topK: 3 });
       
       if (wisdom && wisdom.results && wisdom.results.length > 0) {
         // Format the wisdom results into a context string
@@ -817,7 +827,7 @@ IMPORTANT: You're a value investor bot analyzing financial data through the lens
             console.log('[BuffettWisdom] Enhancing response with wisdom from Berkshire letters');
             
             // Enhance the response with authentic Buffett wisdom from annual letters
-            const enhancedResponse = await buffettWisdom.enhanceResponseWithBuffettWisdom(message, baseResponse);
+            const enhancedResponse = await enhanceResponseWithBuffettWisdom(message, baseResponse);
             
             // Return the enhanced response
             return res.json({
@@ -873,7 +883,7 @@ apiRouter.get('/buffett-principles', async (req, res) => {
     console.log('[BuffettWisdom] Principles endpoint called');
     
     // Get investment principles from Buffett's letters
-    const principles = await buffettWisdom.getInvestmentPrinciples();
+    const principles = await getInvestmentPrinciples();
     
     if (!principles || !principles.length) {
       return res.status(200).json({
@@ -907,7 +917,7 @@ apiRouter.post('/buffett-wisdom', async (req, res) => {
     console.log(`[BuffettWisdom] Wisdom query: "${query.substring(0, 50)}${query.length > 50 ? '...' : ''}"`);
     
     // Get wisdom based on query
-    const wisdom = await buffettWisdom.getBuffettWisdom(query, {
+    const wisdom = await getBuffettWisdom(query, {
       topK: parseInt(topK, 10),
       filters
     });

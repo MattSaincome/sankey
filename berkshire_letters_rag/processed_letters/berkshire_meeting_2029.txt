@@ -1,0 +1,546 @@
+And with our latest expansion, we have said that we will not need a rate increase till 2029 at 
+the earliest. That’s thirteen years off. 
+So there’ve been great benefits if you have a regulation that works with you on that, but it is a 
+determination that is made at the state level. 
+Now, the federal government has encouraged, in a major way, the development of renewables 
+by this production tax credit, which currently amounts to about 2.3 cents per kilowatt hour. 
+We would not have the renewable generation that we have if it hadn’t been for the fact that 
+that building of those projects is subsidized by the federal government, because the benefits of 
+reducing solar emissions are — or carbon emissions — are worldwide, and therefore it’s 
+deemed proper that the citizenry as a whole should participate in subsidizing the cost of 
+reducing those emissions. 
+And that has encouraged — in fact, it’s allowed — things like have happened in Iowa as well. 
+But the degree to which the renewables replace, primarily coal — although there’s plenty of 
+emissions connected with natural gas if you trace it all the way through — will depend on 
+governmental policy. 
+And I think, so far, I think it’s been quite sensible in encouraging — having the cost borne by 
+society as a whole, in terms of reduced tax revenues, and having the benefits, which is less CO₂, 
+into the atmosphere. 
+They also, broadly — you know, they’re not just limited to the people of Iowa when we build 
+that. That’s a benefit that accrues to the world. 
+I think you’ll see continued change. It will vary by jurisdiction. 
+And we would hope — we’ve got the capital, we’ve got lots of taxes, federal taxes, paid in our 
+consolidated returns — so we’re in a particularly advantageous position to take advantage of 
+massive investments that companies with limited tax appetites couldn’t handle. 
+I think you’ll see us be a very big player. But governmental policy is going to be, you know, the 
+major driver. 
+Charlie? 
+CHARLIE MUNGER: Yeah, I think we’re doing way more than our share of shifting to renewable 
+energy, and we’re charging way lower energy prices to our utility customers than other people. 
+If the whole rest of the world were behaving the way we are, it would be a much better world. 
+I will say this about the subject, though, and that is that I think that the people who worry 
+about climate change as the major trouble of Earth don’t have my view. 
+I think that we — I like all this shifting to renewables, but I have a different reason. I want to 
+conserve the hydrocarbons, because eventually, I think, we’re going to use every drop, 
+humanity, for chemical feedstocks. And so I’m in their camp, but I’ve got a different reason. 
+WARREN BUFFETT: One thing you’ll find — might find — kind of interesting: Nebraska has not 
+done much with wind power. And maybe three miles from — two miles — from where we’re 
+sitting, right across the river, people are buying their electricity cheaper, in Council Bluffs right 
+across the river, than they are in Omaha. 
+And yet Omaha — Nebraska is entirely a public power state, so there’s no stockholders who 
+have to have any earnings, the bonds are issued on a tax-exempt basis, and yet electricity is 
+considerably cheaper right across the river. 
+And, you know, the wind blowing doesn’t just start at the Missouri River. I mean, it comes 
+across Nebraska and that wind could be captured. And, so far, it really hasn’t. 
+And the real irony is that because our electricity is so much cheaper in Iowa, you have these 
+massive server farms of people like Google. It’s become a tech haven for these operations that 
+just gobble up electricity. And Iowa has gotten plant after plant after plant and job after job 
+after job, and increased property tax — I mean gotten more property tax revenues — and that’s 
+being done — the Google server is probably seven or eight miles from here — and it’s located 
+in Iowa because we have cheap wind-generated electricity. And it’s creating jobs. It’s 
+fascinating. 
+Nebraska has prided itself on public power. It was originated back, I believe, in the ’30s when 
+George Norris was a very powerful senator here and it’s been a source of pride. But lately, it’s 
+been a source of cost, too. 
+15. Derivatives still a “danger to the system” 
+WARREN BUFFETT: OK, shareholders section 3. 
+AUDIENCE MEMBER: Good morning Mr. Buffett and Mr. Munger. My name’s Adam Bergman. 
+I’m with Sterling Capital in Virginia Beach. 
+In your 2008 shareholder letter, you said, “Derivatives are dangerous… They have made it 
+almost impossible for investors to understand and analyze our largest commercial banks and 
+investment banks.” 
+So my question for you is: how do you analyze and value companies like Bank of America 
+Merrill Lynch and other commercial banks that Berkshire has investments in, relative to their 
+significant derivative exposures? Thanks. 
+WARREN BUFFETT: Yeah, derivatives do complicate the problem very dramatically. 
+Now, they are moving away to being collateralized, which helps. 
+But there’s no question that if you asked me to describe the derivative position of the B of A, 
+for example, I would know that they have done a conscientious job and worked hard at 
+properly evaluating. 
+But the great danger in derivatives is if there’s a discontinuity. If there’s not discontinuities, you 
+probably don’t have much of a problem, assuming they get marked to market, and 
+collateralized, and so on. 
+But if the system stopped for a while — the system stopped after 9/11 for three or four days. It 
+stopped at the time of World War One. They closed the New York Stock Exchange for many 
+months. 
+They debated closing the stock exchange, very seriously, the day after October 19, 1987. And it 
+was — there were a lot of people that wanted to close it. And on that Tuesday morning, it 
+looked like it was about to stop, but it continued. 
+But if you had a — if you have a major cyber, nuclear, chemical, biological, attack on the 
+country — which will certainly happen at some point — if you have a major discontinuity, then 
+you’ll have a lot of problems, a lot of problems. 
+But you will also — when things reopen — you will find there can be enormous gaps in things 
+that you thought were fully protected by collateral, and that sort of thing, or netting 
+arrangements, and that type of thing. 
+So I regard very large derivative positions as dangerous. 
+We inherited a modest- sized position at Gen Re and, in a benign market, we lost about $400 
+million, just in trying to unwind it, with no pressure on us whatsoever. 
+So I do think it continues to be a danger to the system. 
+CHARLIE MUNGER: By the way, the accountants blessed that big derivative position as being 
+worth a lot of money. They were only off, what, many hundreds of millions. 
+WARREN BUFFETT: Yeah, well. Charlie found one position when he was on the audit committee 
+at Salomon. I think it was mismarked by $20 million. 
+I actually, by happenstance, happen — I do know of one incredibly mismarked position — 
+doesn’t affect any of our operations — but it almost staggers the mind to know the way that 
+position is marked. And you can only come to the conclusion that some trader got somehow — 
+influenced whoever did mark it, or marked it himself, heaven forbid, and probably just 
+influenced someone. 
+Or they didn’t know enough. Some of these things get so complicated, they are very hard to 
+evaluate. That’s the kind that have the most profit in them, usually, so they were quite 
+enthusiastic about those when we were at Solomon. 
+They can be extraordinary hard to mark. And, like I say, I know one that’s so mismarked it 
+would blow your mind. 
+And, you know, the auditors, I don’t think, are necessarily capable of holding that behavior in 
+check. 
+It’s very interesting, because now there’s really four big auditing firms, and obviously, they’re 
+auditing companies where there’s a derivative position, and they’re auditing company A that’s 
+on one side of the transaction, and they’re auditing company B that’s on the other side of the 
+transaction. In some cases, it’s the same auditor. 
+And I will guarantee you that there’s plenty of times when the marks on what they’re attesting 
+to are significantly different, which would be an interesting exercise to pursue, in terms of 
+checking those numbers out. 
+Derivatives are still dangerous, in large quantities, and we have — we would not do them, on a 
+collateralized basis, because if there was a discontinuity, I don’t know exactly where we would 
+end up, and I’m never going to get us in a position where we could have money demanded of 
+us and not be able to fulfill it with ease, and with me sleeping well. 
+So we won’t engage in it. We’ve got some in runoff, but so far we’ve made money and had the 
+use of money for a decade or more, and it’s been very attractive for us. But that does not entice 
+me, at all, into doing any derivative transactions that would involve collateral, when collateral is 
+not required. 
+It’s still a potential time bomb in the system. 
+Anything where discontinuities — and basically that means closing up and stopping trading 
+markets from functioning — anything where discontinuities can exist, can be real poison in 
+markets. 
+Kuwait, some years ago, went to a very delayed system on settlement of stock purchases, so 
+they didn’t have to settle up for six months or thereabouts. And it caused all kinds of problems, 
+because, you know, you’ve got an IOU from somebody for six months and if you got zillions of 
+those, a lot of trouble can ensue. 
+So I agree with your general caution. I’m not in the least troubled by our Bank of America 
+investment, nor our Wells Fargo — we added to Wells Fargo — and our Bank of America 
+position, right now, is a preferred stock, but we’re very likely to exercise the warrants on that. 
+On the other hand, there are a great number of banks in the world. If you take the 50 largest 
+banks in the world, we wouldn’t even think about probably 45 of them. Wouldn’t you say that, 
+Charlie? 
+CHARLIE MUNGER: Well, we’re in the awkward position where I think we’ll probably make 
+about $20 billion out of derivatives, and just those few contracts that you and Ajit [Jain] did 
+years ago. 
+All that said, we’re different from the banks. We would really prefer it if those derivatives had 
+been illegal for us to buy. It would have been better for our country. 
+16. Float still “useful” despite low interest rates 
+WARREN BUFFETT: Carol? 
+CAROL LOOMIS: This questions relates to something that Warren briefly said earlier today. The 
+question comes from Lynn Palmer, who is just finishing her freshman year at a Houston, Texas 
+high school. 
+“My question,” she says, “concerns the float generated by Berkshire’s insurance companies. In 
+Mr. Buffett’s 2015 annual letter, he said that the large amount of float that Berkshire possesses 
+allows the company to significantly increase its investment income. 
+“But what happens when interest rates decline? If the U.S. were to implement negative interest 
+rates in the same way that the eurozone and Japan have done, how would Berkshire be 
+affected?” 
+WARREN BUFFETT: Yeah, well some of our float actually exists in Europe, where we have the 
+problem of negative interest rates on very high-grade and short-term and medium — even 
+medium-term bonds — and obviously anything that reduces the value of having money is going 
+to affect Berkshire, because we’re always going to have a lot of money. 
+We — because we have so much capital, and so many sources of earning power, we have the 
+ability, quite properly, to use our float in — to a certain degree — in ways that most insurance 
+companies can’t think about. 
+So we can find things to do, but sometimes we get, you know we — we’ve got fifty-odd billion 
+of short-term government securities now, and we’re going to get another $8.3 billion, in all 
+likelihood, early in June when our Kraft Heinz preferred is called, so we’ll be back over 60 billion 
+again very soon. 
+So we’ve got 60 billion out, that’s out at, say, a quarter of 1 percent. Well, the difference 
+between a quarter of 1 percent and minus a quarter of 1 percent, you know, is not that great. I 
+mean, it’s almost as painful to have 60 million out at a quarter of a percent, as to have it out at 
+a negative rate. 
+Float is not worth as much to insurance companies now as it was 10 years ago or 15 years ago. 
+And that’s true at Berkshire. I think it’s worth considerably more to us than it is to the typical 
+insurance company, because I think we have a broader range of options as to what to do with 
+it. 
+But there’s no question about it, that having a lot of money around now is not just a problem 
+for insurance companies. It’s a problem for retirees. It’s a problem for anybody that’s stuck with 
+fixed-dollar investments and finds that their income now is a pittance or, you know, in Europe, 
+perhaps a negative rate. And that was not something in their calculation at all 15 years ago. 
+We love the idea, however, of increasing our float. I mean that money has been very useful to 
+us over time. 
+It’s useful to us today, even under present conditions, and it’s likely to be very useful to us in 
+the future. It’s shown as a liability, but it’s actually a huge asset. 
+Charlie? 
+CHARLIE MUNGER: I’ve got nothing to add. 
+WARREN BUFFETT: He’s now in full swing. (Laughter) 
+17. We still love BNSF despite falling coal shipments 
+WARREN BUFFETT: Jonathan? 
+CHARLIE MUNGER: We can’t hear you. 
+JONATHAN BRANDT: Testing. The railroad industry seems, right now, to be suffering from 
+exposure to some of the weakest parts of the economy, with volume declines of varying 
+magnitudes in coal, oil, sand, and metals. Even intermodal, usually a steady source of growth, 
+has been relatively weak of late. 
+How much of the weakness is cyclical, how much is secular? 
+In the last 15 months, the other western railroad’s market capitalization is down by 30 — 35 
+percent — as projections of future growth have come down. 
+Is your estimate of BNSF’s intrinsic value down by a material amount during the same period, or 
+is your view of the value of BNSF’s irreplaceable network unaffected by these short-term 
+wiggles? 
+WARREN BUFFETT: Well, I would — certainly the decline in coal — which is a very important 
+commodity — it’s about 20 percent of revenues — that’s secular. 
+Now, there’s other factors that may cause the line of decline to jiggle around. We had a very 
+mild winter, and we went into the winter with utilities carrying unusual amounts of coal. 
+And ironically, part of the reason for that was that our service the year before had been bad 
+and they’d gotten low on coal, so then they compensated by bringing in more than they 
+needed, just to catch up. And because the weather was mild, electricity use was poor in the 
+winter time. And so they continue, at this point, to have considerably more coal on hand than 
+they would like. 
+So they are not only — they’re trying to under order what they will be using, and that has a 
+little effect. But the decline in coal, for sure, is secular. And at 20 percent of revenues, that’s a 
+significant factor. 
+But — and it’s true that the market, generally, got very enthused about railroad stocks a year or 
+two ago, so they sold up a lot. And now that people have seen that car loadings are down and 
+earnings are down, in some places, that equity valuations have come down. 
+We don’t — we love the fact we own BNSF. We think we bought it at an attractive price. We’d 
+love to be able to buy a second thing exactly like it at that price. We’d do it in a second. We’d 
+even pay a little bit more, probably. 
+But we don’t mark up, and down, our wholly-owned businesses, based on stock market 
+valuations. 
+Obviously, stock market valuations are some factor in our thinking, but we are not marking our 
+wholly-owned businesses to market because we know we’re going to hold them forever. And 
+we regard BNSF as a very good business to hold forever. 
+But it will it will lose coal volume and, you know, it may lose in other areas, but it will gain in 
+other areas. It’s a terrific and valuable asset, and it will learn a lot of money this year, but it 
+won’t earn as much money as it earned last year. 
+Charlie? 
+CHARLIE MUNGER: I’ve got nothing to add. 
+18. Don’t envy people making money from risky behavior 
+WARREN BUFFETT: OK. Station 4. 
+AUDIENCE MEMBER: Hi, Warren. Hi, Warren and Charlie. Great to see you. This is Cora and Dan 
+Chen from Taulguard Investments of Los Angeles. 
+This annual meeting reminds me of the magical world of Hogwarts, of Harry Potter. This arena 
+is our Hogwarts. Warren, you are our Headmaster and Professor Dumbledore. (Laughter) 
+WARREN BUFFETT: I haven’t read Harry Potter, but I’ll take it as a compliment. (Laughter) 
+AUDIENCE MEMBER: Charlie is our Headmaster Snape, direct, and full of integrity. 
+The magic of long-term, concentrated, value investing is real, yet similar to Harry Potter, the 
+rest of the world doesn’t believe we exist. 
+Your letter to me has changed my life. Your “Secret Millionaire’s Club” has changed my 
+children’s life. They go to class chatting about investing. 
+My question is for my children watching at home today and the children in the audience. 
+How should they look at stocks, when every day in the media they see companies that have 
+never made a dime in their life go IPO? 
+They’re dilutive and they see a lot of very short-term spin. The cycle is getting shorter and 
+shorter. 
+How should they view stocks, and what’s your message for them? 
+Finally, Cora and I would love to thank you in person and shake your hand personally today. I’ll 
+repeat what I said last year: thank you for putting — setting — the seeds for my generation to 
+sit in the shade, and for my children’s generation to sit in the shade with the “Secret 
+Millionaire’s Club.” 
+I truly walk amongst giants. Thank you. 
+WARREN BUFFETT: Would you mind repeating the whole thing? (Laughter) 
+“The Secret Millionaire’s Club,” we want to give great credit to Andy Heyward on that. I think it 
+has helped — I know it’s helped — thousands and thousands of children and Andy — it was 
+Andy’s idea — and it grows in strength. 
+And having young children learn good lessons, in terms of handling money, and making 
+friendships, and just generally behaving as better citizens is a great objective, and Andy makes 
+it easy for them to do. So, on his behalf, I accept your comments. 
+You don’t really have to worry about, you know, what’s going on in IPOs, or people making 
+money. 
+People win lotteries every day, but there’s no reason to have that effect you at all. You 
+shouldn’t be jealous about it. 
+I mean, you know, if they want to do mathematically unsound things, and one of them 
+occasionally gets lucky, and they put the one person on television, and the million that 
+contributed to the winnings, with the big slice taken out for the state, you know, don’t get on 
+— it’s nothing to worry about. 
+Just, all you have to do is figure out what makes sense. And you don’t — you look at buying — 
+when you — when you buy a stock, you get yourself in the mental frame of mind that you’re 
+buying a business, and if you don’t look at a quote on it for five years, that’s fine. 
+You don’t get a quote on your farm every day or every week or every month. You don’t get it on 
+your apartment house, if you own one. If you own a McDonald’s franchise, you don’t get a 
+quote every day. 
+You know, you want to look at your stocks as businesses, and think about their performance as 
+businesses. Think about what you pay for them, as you would think about buying a business. 
+And let the rest of the world go its own way. You don’t want to get into a stupid game just 
+because it’s available. 
+And I’m going to say a little more about that close to the break. But with that, I’ll turn it over to 
+Charlie. 
+CHARLIE MUNGER: Yeah, well, I think that your children are right to look for people they can 
+trust in dealing with stocks and bonds. 
+Unfortunately, more than half the time, they will fail, in a conventional answer. So you — they 
+really have to — they have a hard problem. If you just listen to your elders, they’ll lie to you and 
+make — spread — a lot of folly. 
+WARREN BUFFETT: But they really have an easy problem, in the sense that American business, 
+as a whole, is going to do fine over time. So the only way they can — 
+CHARLIE MUNGER: But not the average client of a stock broker. 
+WARREN BUFFETT: Well, we’ll get to that later. (Laughs) 
+The stockbroker will do fine. The — (laughter) 
+CHARLIE MUNGER: Yes, that’s true. 
+WARREN BUFFETT: But, they don’t have to do that and we can talk — I’d rather address that 
+just a little later. 
+But — just — you don’t want to worry — you don’t want to be — a lot of problems are, as 
+Charlie would say, are caused by envy. You don’t want to get envious of somebody who’s won 
+the lottery, or bought an IPO that went up. You have to figure out what makes sense and follow 
+your own course. 
+19. Nevada utility customers shouldn’t have to subsidize solar power 
+WARREN BUFFETT: Becky? 
+BECKY QUICK: This question comes from a shareholder named Lisa Kang Le (PH) in Singapore. 
+And this has to do with NV Energy’s issue with solar energy in Nevada. 
+“Can the chairman help his environmentally conscious shareholders understand why NV Energy 
+has lobbied for new rules in Nevada that make it prohibitive for households to use solar 
+energy? Is there a good reason that we haven’t yet heard about? 
+“And can the chairman or vice chairman share their views on whether there’s a need to 
+implement an environmental, social, and governance policy, on Berkshire investments going 
+forward? 
+“I understand that Berkshire Hathaway typically lets the underlying operating companies and 
+CEOs manage their own policies autonomously, but should Berkshire’s board influence better 
+environmental protection policies going forward?” 
+WARREN BUFFETT: Well, the public utility and the pricing policies and everything in Nevada, as 
+well as other places, but they’re determined by a public utility commission. So, there are, I 
+believe, three commissioners that decide what’s proper. 
+The situation in Nevada is that, in terms of rooftop power, was that for the last few years, if you 
+had a solar project on your roof, you could sell back excess power you generated to the grid at 
+a price that was far, far, far above what we, as a utility, could buy it for elsewhere. 
+So, you could sell it back, we’ll say, at roughly 10 cents a kilowatt hour. And about 17,000 — 
+maybe a few more now — about 17,000 people had rooftop installations. 
+Now they get — there were federal credits involved, but those usually got sold to other people, 
+in terms of tax credits. 
+So they were being subsidized by the federal government, and that encouraged solar 
+generation, as it’s encouraged us to do solar generation and wind generation, as well. 
+But the people who had these 17,000 rooftop installations were selling back to the grid at 10 
+cents, roughly, a kilowatt hour, energy we could purchase or produce — either — but purchase 
+elsewhere, too — for 3 1/2 cents, or thereabouts. 
+So, 99 percent of our consumers were being asked to subsidize the 1 percent that had solar 
+units, by paying them a significantly — triple the market price, basically — of what we could 
+otherwise buy electricity to sell to the 99 percent. 
+So then it’s just a question of whether you wish to have the 99 percent subsidize the 1 percent. 
+And the public utility commission in Nevada, they had originally let this small amount of rooftop 
+solar generation be allowed as an experiment with this 10 cent, roughly 10 cent, rebate. 
+And they decided that they did not believe that the 99 percent should be subsidizing the 1 
+percent. 
+There may — there’s no question — that for solar to be competitive, just like wind, it needs 
+subsidization. Costs are not yet at a level where it becomes competitive with natural gas, for 
+example. 
+And who pays the subsidy gets to be a real question, if you want to encourage people to use 
+renewables. 
+And, in general, the federal government has done it through tax subsidies, which means 
+taxpayers, generally, throughout the country subsidize it. 
+And the public utility commission in Nevada decided that after seeing this experiment, they 
+decided that it was not right for a million — well over a million — customers to be buying 
+electricity at a price that subsidized the 17,000 people, and therefore increase the prices of 
+electricity for the million. 
+And that question of who subsidizes renewables, and how much, is, you know, going to be a 
+political question for a long time to come. 
+And I personally think that if society is the one that’s benefiting from the lack of — reduction of 
+— greenhouse gases, that society should pick up the tab. 
+And I don’t think that somebody sitting in a house in someplace in Nevada, we’ll call it Las 
+Vegas, but it could be other cities because we serve most of Nevada, should be picking up the 
+subsidy for their neighbor, and the public utility commission agrees with that. 
+I think we have Greg Abel here who — NV Energy is a subsidiary of Mid-American — of 
+Berkshire Hathaway Energy. 
+Greg, was there anything you want to add? Can we get a spotlight down here? Maybe? 
+It’s not live. 
+GREG ABEL: I think it’s on now. 
+So, as usual Warren, you summarized it extremely well. When we think of Nevada, it’s exactly 
+as you described. I would just add a few things. 
+One: as you’ve touched on earlier, we absolutely support renewables. So we start with the 
+fundamental concept that we are for solar. But, as you highlighted, we want to purchase 
+renewable energy at the market rate, not at a heavily subsidized rate that 1 percent of the 
+customers will benefit from and harm the other 99 percent. 
+And it goes back to being as fundamental as this: if you take, as you touched on, a working 
+family in Nevada who can’t afford the roof top unit and you ask him, “Do you want to subsidize 
+your neighbor, that 1 percent?” the answer is clearly no. 
+At the same time, we’re absolutely committed to Nevada utilizing renewable resources, and 
+absolutely proud of what our team’s doing. By 2019, we will have eliminated or retired 76 
+percent of our coal units and be replacing it with solar energy. So we’re on a great path there. 
+Thank you. (Applause) 
+And we’re just going to encourage our team. And with the work of the commission, and 
+obviously led by the state, we’ll head down a great path. Thank you. 
+WARREN BUFFETT: Yeah, if the projectionist would put up slide 7, it will give you a view of what 
+the situation is. 
+This counts all of our all our Berkshire Hathaway Energy operations, and you can see, in a 20-
+year period we’ll have a 57 percent reduction. 
+You wouldn’t want a 100 percent reduction tomorrow. Believe me, the lights would be off all 
+over the country. But it’s moving at a fast pace. 
+But, you do — you want to be sure that you treat fairly the people involved in this, because 
+somebody pays the cost of electric generation. 
+And I do think that if you’re doing something that’s to benefit the planet — and it’s important 
+that it be done — but that you have the cost be assessed for that, not on a specific person 
+who’s having trouble, perhaps, making ends meet in their job. 
+And obviously, if you’ve got over a million customers in Nevada, a lot of them are struggling. A 
+lot of them are going fine, too. But they are not the ones, in my view, to subsidize the person 
+who could afford to put the solar unit in. 
+20. We don’t buy or sell based on commodity price predictions 
+WARREN BUFFETT: OK. Cliff? 
+CLIFF GALLANT: Over the past year we’ve learned — perhaps I’ve learned — that Berkshire’s 
+results are more influenced by oil markets than I previously appreciated. Revenues at the 
+railway company and some of Berkshire’s manufacturing businesses were negatively impacted. 
+And arguably, low gas prices hurt GEICO’s loss ratio. 
+Yet during this year, Berkshire invested in Phillips 66, Kinder Morgan, and even PCP has 
+revenues associated with the oil and gas industries. 
+I know Berkshire wouldn’t make a bet on a commodity like oil, but is Berkshire making a 
+statement about the long-term outlook for oil? 
+WARREN BUFFETT: Making a statement about what? 
+CLIFF GALLANT: Oil. 
+WARREN BUFFETT: The price? The price of oil? 
+CLIFF GALLANT: Yes. 
+WARREN BUFFETT: No. We haven’t the faintest idea what the long-term price of oil was and 
+there’s always a better system available. 
+You can buy oil, as you know, for delivery a year from now, or two years from now, or three 
+years from now. We actually did that once, Charlie, didn’t we? Some years back. 
+CHARLIE MUNGER: Cashed it in too soon, too. 
+WARREN BUFFETT: Yeah. We made money but we could have made a lot more money. 
+We don’t think we can predict commodity prices. We don’t hedge cocoa or sugar (inaudible). 
+We do some forward buying of chocolate coatings or something of the sort. 
+But basically, we are not two fellows who think we can predict the price of soybeans or corn or 
+oil or anything else. 
+So, anything you have seen in our investment transactions — some of those securities you 
+mentioned there were bought by Todd or Ted, and one was bought by me — but neither they 
+nor I bought those, or if we sell them, sell them, based on commodity price predictions. 
+We don’t know how to do it. And we’re thinking about other things when we make those 
+decisions. 
+Charlie? 
+CHARLIE MUNGER: I’m even more ignorant than you are. 
+WARREN BUFFETT: That would be hard to beat. (Laughs) 
+OK. I think that’s the first time I’ve heard him say that. It has a nice ring to it. (Laughter) 
+21. Don’t expect efficiency in higher education 
+WARREN BUFFETT: OK, station 5. 
+AUDIENCE MEMBER: Hi Warren. Hi Charlie. 
+WARREN BUFFETT: Hi. 
+AUDIENCE MEMBER: I’m Ken Martin. I’m an MBA student from the Tuck School at Dartmouth. 
+My question is about college tuition and the problem of rising student debt balances. 
+In the past, prominent philanthropists have founded institutions that are now prominent 
+research universities in our country. Why is this not a bigger part of today’s philanthropic 
+debate, the founding of new colleges? Would not new supply in higher education be at least 
+part of the solution to this problem? 
+WARREN BUFFETT: Charlie, you want to tackle that one? You’re more of an expert than I am. 
+CHARLIE MUNGER: Yeah. I think that if you expect a lot of efficiency — financial efficiency — in 
+American higher education, you’re howling at the wind. (Laughter and applause) 
+WARREN BUFFETT: Well. I think he’s also talking about just more philanthropy to deliver there. 
+Am I right? 
+Want to give him the light back on there? 
+AUDIENCE MEMBER: Yeah, that’s right. 
+CHARLIE MUNGER: What’s the question again? 
+WARREN BUFFETT: The question about is — maybe — whether more philanthropy ought to be 
+devoted to that relatively because of the cost. But — 
+CHARLIE MUNGER: Well, I do a lot more than Warren does in this field — (laughs) — and I am 
+frequently disappointed but — (Laughter) 
+Monopoly has kind of — and bureaucracy — have kind of pernicious effects everywhere, and 
+the universities aren’t exempted from it. 
+But of course, they are the glory of civilization, and if people want to give more to it, why, I’m 
+all for it. 
+WARREN BUFFETT: Yeah, it — you know, you’ve got the option of very good state schools and 
+— we spend a lot of money on education in this country. 
+You know, if you just take — you take kindergarten through twelve, it’s interesting. People talk 
+about entitlements in this country. They say it’s terrible we have all these entitlements for 
+Social Security and everything. 
+We have entitlements for the young. We spend $600 billion a year educating 50 million kids in 
+the public schools between kindergarten and twelfth grade, and just think what that is as an 
+entitlement. 
+Nobody ever seems to bring that up. But it’s a huge — and I believe in it, obviously, but — you 
+know, the people in their working ages, generally speaking, I think have an — in a rich society 
+— have an obligation to both the young and the old. 
+And based on the amount we spend, if we have problems with our school system it’s not 
+because we’re cheap. No, there are other problems that contribute to it. In terms of the money 
+we put out, we’re right up there. (Applause) 
+But I was the trustee of a college that saw the endowment go from $8 million to over a billion. 
+And I didn’t see the tuition come down. And I didn’t see the number of students go up. 
+CHARLIE MUNGER: Nothing went up, except the professors’ salaries. 
+WARREN BUFFETT: Yeah. From 8 million to a billion. I mean — and very, very decent people 
+running the place. 
+But when you read the figures on endowment of the big schools, you know, and some of them 
+have really got up in the big numbers, the main objective of the people running the endowment 
+is to have the endowment grow larger. And that will be ever thus. That is the way humans 
+operate. 
+You have any more comments on that, Charlie? You’ve seen a lot. 
+CHARLIE MUNGER: I’ve made all the enemies I can afford at the moment. 
+WARREN BUFFETT: OK. (Laughter.) 
+That’s never slowed him down in the past. (Laughter) 
+22. Berkshire will “do fine” if Trump or Clinton wins 
+WARREN BUFFETT: Andrew. 
+ANDREW ROSS SORKIN: Thank you, Warren. This from a shareholder who asked to remain 
+anonymous. 
+“If Donald Trump becomes the president of the United States, and recognizing your public 
+criticism of him and your public support for Hillary Clinton, what specific risks, regulatory, 
+policy, or otherwise, do you foresee for Berkshire Hathaway’s portfolio of businesses? 
+WARREN BUFFETT: That won’t be the main problem. (Laughter and applause) 
+Well. Government, you know, is a very big factor in our business and in all businesses. I mean, 
+there’s the very broad policies that affect practically everybody, and sometimes there can be 
+some pretty specific policies. 
+But, I will predict that if Don — either Donald Trump or Hillary Clinton becomes president — 
+and one of them is likely to be — very likely to be — I think Berkshire will continue to do fine. 
+Charlie? 
+CHARLIE MUNGER: I’m afraid to get into this area. (Laughter) 
+WARREN BUFFETT: Yeah. We’ve operated under all — I mean, we’ve operated under price 
+controls. I mean, there — 
+We’ve had 52 percent federal taxes applied to our earnings for many years. Even high — I 
+mean, they were higher at other times — but there — you know, we’ve had regulations come 
+along and, in the end, business in this country has done extraordinarily well for a couple of 
+hundred years, and it was adapted to the society and the society has adapted to business. 
+This is a remarkably attractive place in which to conduct a business. Imagine, in a world of 
+practically zero interest rates, you know, American business earning terrific returns on tangible 
+cap — equity. I mean, those are the assets that were actually employed in the business. The 
+numbers are staggering. 
+And, you know, people who have had their money in savings accounts or something like that 
+get destroyed. 
+But owners of business, if you look at returns on tangible equity, just check them out some 
+time, and they have not suffered even as people who own fixed-interest — fixed-income — 
+instruments have suffered enormously. 
+And, you know, farm prices are down now. Farmer income has fallen off a lot in the last couple 
+of years. 
+But business has managed to take care of itself. And for a good reason, because it contributes 
+to, and has been the engine of, our market economy that’s delivered output that is staggering 
+by the imagination of anyone that might have existed 100 years ago. 
+In my lifetime, the GDP per capita, in real terms, of the United States, has gone up six-for-one. 
+Can you imagine a society where in one person’s lifetime, overall, people have six times the real 
+output that they had at the beginning. 
+It’s — you know, the system works very well in terms of aggregate output. In terms of 
+distribution of that output, sometimes it can fall very short, in my view. But, it’ll keep working. 
+You don’t have to worry about that. 
+Twenty years from now, they’ll be far more output per capita in the United States, in real 
+terms, than there is now. In 50 years, it will be far more. It’ll — and the quality will get better. 
+And no presidential candidate or president is going to end that. They can shape it in ways that 
+are good or bad, but they can’t end it. 
+Now Charlie, give something pessimistic here to balance me out. 
+CHARLIE MUNGER: No, I want to say something optimistic. 
+I think that the GDP figures greatly understate the real advantage that our system has given our 
+citizens. It underweighs a lot of huge achievements because they don’t translate right into 
+money in a certain way that the economists can easily handle. 
+But the real achievements over the last century, say, are way higher than are indicated by the 
+GDP figures, and the GDP figures are good. 
+I don’t think the future is necessarily going to be quite as a good as the past. But it doesn’t have 
+to be. 
+WARREN BUFFETT: There’s no one you’ll run into, at least in my experience, that says, “With my 
+same talents, I wish I’d lived 50 years ago instead.” Born 50 years earlier. 
+But a majority of the American public thinks that it’s a bad time to be born today compared to 
+when they were born. They think their children will not — they’re wrong. I mean, it’s — the 
+pace of innovation — just think how different you’re living compared to 20 years ago, in terms 
+of what you do with your time. 
+Now, a lot of people may condemn it, or something of the sort, but you’re making free choices 
+that were not available to you 20 years ago and you’re making them in a different direction 
+than — 
+I’m still staying with the landline, but you people are way ahead of me. (Laughs). 
+23. BNSF CEO doesn’t see rail mergers in near future 
+WARREN BUFFETT: OK. Gregg? 
+GREGG WARREN: Warren. Late last year we saw Canadian Pacific make a hostile bid for Norfolk 
+Southern, a combination that would have linked Canada’s second largest carrier with one of the 
+two largest railroads in the eastern U.S. 
+This move led to a largely negative reaction from not only Norfolk Southern, but from federal 
+and state lawmakers, shippers, and other railroad operators, even though a formal evaluation 
+process hadn’t even begun with the U.S. Surface Transportation Board. Canadian Pacific 
+eventually backed down. 
+Looking back to 1999, when the Transportation Board blocked a proposed merger between 
+BNSF and Canadian National, the attitude was that any additional mergers amongst railroads 
+would have to be accretive to competition. 
+What do you think they meant by this? And if one believes that the hookup of one of the two 
+major western railroads with one of the two eastern railroads would not alter the current 
+landscape, where most shippers have just two choices amongst the large railroads operating in 
+the region, and could actually generate efficiencies and cost savings that could be passed along 
+to customers, how does a combination of someone like BNSF with Norfolk Southern or CSX not 
+satisfy their goal? 
+WARREN BUFFETT: I — I think now there’s — and is Matt Rose, is he here? He can probably 
+answer that — some of that — better than I can — certainly. He can answer all of it better than 
+I can. 
