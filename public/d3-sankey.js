@@ -140,6 +140,37 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
       .attr('width', '100%')
       .attr('height', height)
       .attr('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    
+    // Add pattern definitions for negative flows
+    const defs = svg.append('defs');
+    
+    // Cross-hatch pattern for negative flows
+    const pattern = defs.append('pattern')
+      .attr('id', 'negative-flow-pattern')
+      .attr('patternUnits', 'userSpaceOnUse')
+      .attr('width', 8)
+      .attr('height', 8);
+    
+    // Add red background
+    pattern.append('rect')
+      .attr('width', 8)
+      .attr('height', 8)
+      .attr('fill', '#c0392b')
+      .attr('opacity', 0.5);
+    
+    // Add diagonal lines for cross-hatch effect
+    pattern.append('path')
+      .attr('d', 'M0,8 L8,0')
+      .attr('stroke', '#8b0000')
+      .attr('stroke-width', 1.5)
+      .attr('opacity', 0.6);
+    
+    pattern.append('path')
+      .attr('d', 'M0,0 L8,8')
+      .attr('stroke', '#8b0000')
+      .attr('stroke-width', 1.5)
+      .attr('opacity', 0.6);
+    
     // Header: logo, title, and subtitles
     const headerOffset = 80;
     const titleY = 30;
@@ -202,22 +233,52 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
   if (!absValue) return; // Skip zero values only (do not filter by threshold)
   const sourceIdx = nodeMap[source];
   const targetIdx = nodeMap[target];
+  const isNegative = value < 0;
+  if (isNegative) {
+    console.log('[DEBUG] Creating negative link:', source, '→', target, 'value:', value);
+  }
   links.push({ 
     source: sourceIdx, 
     target: targetIdx, 
     value: absValue,
-    isNegative: value < 0 // Track if original value was negative
+    isNegative: isNegative // Track if original value was negative
   });
 }
 
-    
+    // Helper function to recursively update depths of downstream nodes
+function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNodes) {
+    // Find outgoing links from the currentNode.
+    // currentNode.sourceLinks should ideally be populated by initializeNodeDepths or a similar graph processing step.
+    // If not, we might need to search allLinks, but that's less efficient.
+    const outgoingLinks = currentNode.sourceLinks || allGraphNodes.flatMap(n => n.sourceLinks || []).filter(l => l.source.name === currentNode.name);
+
+    (outgoingLinks).forEach(link => {
+        const targetNode = link.target;
+        const newTargetDepth = currentDepth + 1;
+        // Only update if new depth is greater, to push things right and avoid issues with cycles (though graph should be DAG)
+        if (targetNode.depth < newTargetDepth) {
+            console.log(`[Depth Adjust] Updating depth for ${targetNode.name} from ${targetNode.depth} to ${newTargetDepth}`);
+            targetNode.depth = newTargetDepth;
+            updateDownstreamDepthsRecursive(targetNode, newTargetDepth, allGraphNodes);
+        }
+    });
+}
+
     // --- Product Segments: Explicit Order ---
     if (segments.length > 0) {
-      const desiredOrder = ['iPhone', 'Mac', 'iPad', 'Service', 'Accessories'];
-      segments.sort((a, b) => desiredOrder.indexOf(a.segment) - desiredOrder.indexOf(b.segment));
-      segments.forEach(s => {
-        addNode(s.segment);
+      // Filter out invalid segment names
+      const validSegments = segments.filter(s => {
+        const name = s.segment ? s.segment.toLowerCase() : '';
+        return name && !name.includes('reportable') && name !== 'segment' && s.revenue > 0;
       });
+      
+      if (validSegments.length > 0) {
+        const desiredOrder = ['iPhone', 'Mac', 'iPad', 'Service', 'Accessories'];
+        validSegments.sort((a, b) => desiredOrder.indexOf(a.segment) - desiredOrder.indexOf(b.segment));
+        validSegments.forEach(s => {
+          addNode(s.segment);
+        });
+      }
     }
     
     // Standard nodes
@@ -295,25 +356,35 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
     // Rest of standard nodes
     const stdNodes = [
       'Operating Income',
-      'Interest Expense', 
+      'Interest Expense',
+      'Income Before Taxes',
       'Income Tax Expense', 
-      'Net Income'
+      'Net Income',
+      'Net Loss' // Add Net Loss to standard nodes so it's always included
     ];
     stdNodes.forEach(addNode);
     
     // --- UNIVERSAL REVENUE SEGMENT AUTO-SCALING FOR PERFECT ALIGNMENT ---
     // Use only the original values for scaling; do not mutate the segment objects yet
     if (segments && Array.isArray(segments) && segments.length > 0 && typeof data.revenue === 'number' && data.revenue > 0) {
-      const segSum = segments.reduce((sum, s) => sum + (typeof s.revenue === 'number' ? s.revenue : 0), 0);
-      // Compute scale factor but do NOT mutate segments
-      let scale = 1;
-      if (Math.abs(segSum - data.revenue) > 1e-2 && segSum > 0) {
-        scale = data.revenue / segSum;
-      }
-      // Now add links from each segment to Revenue using the scaled value, but keep original segment values for tooltips/labels
-      segments.forEach(s => {
-        addLink(s.segment, 'Revenue', s.revenue * scale);
+      // Filter out invalid segments again for consistency
+      const validSegments = segments.filter(s => {
+        const name = s.segment ? s.segment.toLowerCase() : '';
+        return name && !name.includes('reportable') && name !== 'segment' && s.revenue > 0;
       });
+      
+      if (validSegments.length > 0) {
+        const segSum = validSegments.reduce((sum, s) => sum + (typeof s.revenue === 'number' ? s.revenue : 0), 0);
+        // Compute scale factor but do NOT mutate segments
+        let scale = 1;
+        if (Math.abs(segSum - data.revenue) > 1e-2 && segSum > 0) {
+          scale = data.revenue / segSum;
+        }
+        // Now add links from each segment to Revenue using the scaled value, but keep original segment values for tooltips/labels
+        validSegments.forEach(s => {
+          addLink(s.segment, 'Revenue', s.revenue * scale);
+        });
+      }
     }
     
     // Revenue to Gross Profit and Cost of Revenue
@@ -345,29 +416,39 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
         const opExpValue = Math.min(totalOperatingExpenses, data.grossProfit);
         addLink('Gross Profit', 'Operating Expenses', opExpValue);
     }
-
+    
     // --- Financially accurate handling for Operating Income/Loss flows ---
     if (isProfitable) {
-      // Normal profitable case: connect Gross Profit to Operating Income
-      addLink('Gross Profit', 'Operating Income', data.operatingIncome);
-    } else {
-      // FINANCIAL ACCURACY PRIORITY: Use the actual loss amount
-      // For unprofitable companies, create a dedicated Operating Loss node with accurate value
-      // Rather than trying to show flows to a negative value, which isn't possible in Sankey
+      // Calculate the direct flow from Gross Profit to Operating Income
+      // Operating Income = Gross Profit - Operating Expenses
+      const operatingExpensesValue = Math.min(totalOperatingExpenses, data.grossProfit);
+      const directToOperatingIncome = data.grossProfit - operatingExpensesValue;
       
-      // Create a dedicated node with exactly the right size
+      // Add link from Gross Profit to Operating Income
+      if (directToOperatingIncome > 0) {
+        addLink('Gross Profit', 'Operating Income', directToOperatingIncome);
+      }
+    } else {
+      // FINANCIAL ACCURACY PRIORITY: Show Operating Loss as negative money
+      // For unprofitable companies, Operating Loss represents expenses exceeding Gross Profit
+      
+      // Create the Operating Loss node
       addNode('Operating Loss');
       
-      // Use a minimal connection to ensure the node appears in the correct position
-      // But has the accurate size representing the actual loss
-      const MINIMUM_VISIBLE_FLOW = 1e5; // $100k minimum visibility
-      
-      // Connect using the absolute value of the operating loss
-      // This ensures the node size accurately reflects the financial reality
+      // VISUALIZE OPERATING LOSS CORRECTLY AS A DIRECT OVERHANG FROM GROSS PROFIT
+      // Create the crucial direct link from Gross Profit to Operating Loss
+      // This is the key to showing Operating Loss as an "overhang" from Gross Profit
+      // indicating that expenses exceed gross profit, resulting in a loss
       const absLoss = Math.abs(data.operatingIncome);
-      addLink('Operating Expenses', 'Operating Loss', Math.max(absLoss, MINIMUM_VISIBLE_FLOW));
+      // Mark this as a negative flow since it represents a loss
+      addLink('Gross Profit', 'Operating Loss', -absLoss);
       
-      // Remove the original 'Operating Income' node by not creating any links to it
+      // We'll handle the positioning after the Sankey layout is created
+      
+      // NO connection from Operating Expenses to Operating Loss
+      // This ensures Operating Loss appears as a direct overhang from Gross Profit
+      
+      // Remove the original 'Operating Income' node as we're using Operating Loss instead
       nodeMap['Operating Income'] = undefined;
     }
 
@@ -396,59 +477,106 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
     } 
     // --- End Updated Operating Expenses Flow ---
  
-    // Handle Interest Expense/Income
+    // --- Standard Income Statement Flow ---
+    // Step 1: Handle Interest Expense as a deduction from Operating Income
     const interestValue = Math.abs(data.interestExpense || -data.interestIncome || 0);
-    // Link from Operating Income to Income Tax Expense
-    if (data.incomeTaxExpense && data.incomeTaxExpense > 0) {
-      addLink('Operating Income', 'Income Tax Expense', data.incomeTaxExpense);
-    }
     
-    // Link from Operating Income to Interest Expense
-    if (data.interestExpense && data.interestExpense > 0) {
-      addLink('Operating Income', 'Interest Expense', data.interestExpense);
-    }
-    
-    // --- Financially accurate Net Income/Loss handling ---
-    if (isNetProfitable) {
-      // For profitable companies, show standard flow
-      if (isProfitable) {
-        // Normal case: operating income flows to net income
-        addLink('Operating Income', 'Net Income', data.netIncome);
-      } else {
-        // Unusual case: operating loss but net profit (tax credits, one-time gains)
-        // Connect from Operating Loss to Net Income
-        addLink('Operating Loss', 'Net Income', data.netIncome);
+    if (isProfitable) {
+      // Link from Operating Income to Interest Expense
+      if (data.interestExpense && data.interestExpense > 0) {
+        addLink('Operating Income', 'Interest Expense', data.interestExpense);
+      }
+      
+      // Step 2: Link from Operating Income to Income Before Taxes (after interest expense)
+      const operatingToIBT = data.operatingIncome - (data.interestExpense || 0);
+      if (operatingToIBT > 0) {
+        addLink('Operating Income', 'Income Before Taxes', operatingToIBT);
+      }
+      
+      // Step 3: Check if there's any Other Income contributing to Income Before Taxes
+      // This captures non-operating income like investment returns, asset sales, etc.
+      const otherIncome = data.incomeBeforeTax - operatingToIBT;
+      if (otherIncome > 1e6) { // More than $1M to be visible
+        addNode('Other Income');
+        addLink('Other Income', 'Income Before Taxes', otherIncome);
       }
     } else {
-      // FINANCIAL ACCURACY PRIORITY: For unprofitable net results
-      // Create a dedicated Net Loss node with the exact right size
+      // For unprofitable companies with our new visualization approach
+      
+      // Step 1: Connect Operating Loss to Income Before Taxes
+      // The Operating Loss directly affects Income Before Taxes
+      const absLoss = Math.abs(data.operatingIncome);
+      // Mark Operating Loss as negative flow by passing negative value
+      addLink('Operating Loss', 'Income Before Taxes', -absLoss);
+      
+      // Step 2: Check for Other Income (non-operating sources)
+      // This represents income from sources other than core operations that may offset the loss
+      const otherIncome = data.incomeBeforeTax + absLoss; // If positive, represents additional income
+      
+      // Add Other Income node if significant
+      if (otherIncome > 1e6) { // More than $1M to be visible
+        addNode('Other Income');
+        addLink('Other Income', 'Income Before Taxes', otherIncome);
+      }
+    }
+    
+    // Step 4: Link from Income Before Taxes to Income Tax Expense
+    if (data.incomeTaxExpense && data.incomeTaxExpense > 0) {
+      addLink('Income Before Taxes', 'Income Tax Expense', data.incomeTaxExpense);
+    }
+    
+    // Step 5: Link from Income Before Taxes to Net Income/Loss
+    if (isNetProfitable) {
+      const ibtToNetIncome = data.incomeBeforeTax - (data.incomeTaxExpense || 0);
+      if (ibtToNetIncome > 0) {
+        addLink('Income Before Taxes', 'Net Income', ibtToNetIncome);
+      }
+    } else {
+      // For net loss, connect from Income Before Taxes to Net Loss
+      addLink('Income Before Taxes', 'Net Loss', data.netIncome); // Pass negative value to ensure isNegative flag is set
+    }
+    
+    // For debugging purposes, log the key financial values
+    console.log(`Financial Summary: OP Income: ${data.operatingIncome}, Interest: ${data.interestExpense || 0}, Income Before Tax: ${data.incomeBeforeTax || 0}, Net Income: ${data.netIncome}`);
+    
+    // DEBUG: Force logging of all nodes to check if Net Loss is created
+    console.log('DEBUG: Node Map Keys:', Object.keys(nodeMap));
+    if (!isNetProfitable) {
+      console.log('DEBUG: Company is not net profitable, should have Net Loss node');
+      // Double check Net Loss node is created
+      if (!nodeMap['Net Loss']) {
+        console.log('DEBUG: Net Loss node missing, creating it now');
+        addNode('Net Loss');
+      }
+    }
+    
+    // The Other Income flow is now handled in the standard accounting flow above
+    // No need for additional non-operating adjustment calculations
+    
+    // Net Income/Loss handling is now done in the standard flow above
+    // If this is a net loss, make sure we have a Net Loss node and remove Net Income
+    if (!isNetProfitable) {
+      // Create a dedicated Net Loss node if not already created
       addNode('Net Loss');
       
-      // Use absolute value to accurately represent the loss amount
-      const absNetLoss = Math.abs(data.netIncome);
-      const MINIMUM_VISIBLE_FLOW = 1e5; // $100k minimum visibility
-      
-      if (isProfitable) {
-        // Case: Operating profit turned into net loss (due to taxes/interest/writedowns)
-        // Show flows from the expense items that caused the loss
-        if (data.incomeTaxExpense > 0 && data.interestExpense > 0) {
-          // Split between tax and interest if both present
-          addLink('Income Tax Expense', 'Net Loss', absNetLoss * 0.5);
-          addLink('Interest Expense', 'Net Loss', absNetLoss * 0.5);
-        } else if (data.incomeTaxExpense > 0) {
-          // Just tax expense
-          addLink('Income Tax Expense', 'Net Loss', absNetLoss);
-        } else if (data.interestExpense > 0) {
-          // Just interest expense
-          addLink('Interest Expense', 'Net Loss', absNetLoss);
-        } else {
-          // Fallback if no clear source
-          addLink('Operating Income', 'Net Loss', Math.max(absNetLoss, MINIMUM_VISIBLE_FLOW));
-        }
-      } else {
-        // Case: Operating loss led to net loss
-        // Connect from Operating Loss to Net Loss
-        addLink('Operating Loss', 'Net Loss', Math.max(absNetLoss, MINIMUM_VISIBLE_FLOW));
+      // CRITICAL: Make sure there's a link from Income Before Taxes to Net Loss
+      // This ensures the Net Loss node is always visible in the diagram
+      if (data.netIncome < 0) {
+        // Force a direct link from Income Before Taxes to Net Loss with the absolute value of Net Income
+        const absNetLoss = Math.abs(data.netIncome);
+        // Use a minimum value for the link to ensure it's visible
+        const minimumVisibleValue = Math.max(absNetLoss, data.incomeBeforeTax * 0.05); // At least 5% of income before tax
+        console.log(`DEBUG: Creating link to Net Loss with value ${absNetLoss}, minimum ${minimumVisibleValue}`);
+        
+        // Remove any existing links to ensure we don't have duplicates
+        links = links.filter(l => !(l.source === 'Income Before Taxes' && l.target === 'Net Loss'));
+        
+        // Add our properly sized link
+        links.push({
+          source: 'Income Before Taxes',
+          target: 'Net Loss',
+          value: absNetLoss > 0 ? absNetLoss : minimumVisibleValue // Ensure positive value
+        });
       }
       
       // Remove the original 'Net Income' node by not creating any links to it
@@ -491,63 +619,549 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
     links = links.filter(l => keepNode[l.source] && keepNode[l.target]).map(l => ({
       source: oldToNew[l.source],
       target: oldToNew[l.target],
-      value: l.value
+      // Use absolute value for sankey thickness
+      value: Math.abs(l.value),
+      // CRITICAL: Preserve the isNegative flag for negative flows
+      isNegative: l.isNegative || false
     }));
+    
+    // Debug: Check which links have isNegative flag
+    links.forEach(l => {
+      if (l.isNegative) {
+        console.log('[DEBUG] Preserved negative link after filtering:', 
+          nodeNames[l.source], '→', nodeNames[l.target], 'isNegative:', l.isNegative);
+      }
+    });
+    
     nodeMap = {};
     nodeNames.forEach((n, i) => { nodeMap[n] = i; });
 
     // Dynamic Sankey node sizing for adaptive zoom
     const dynamicNodeWidth = Math.max(30, chartWidth * 0.03);
     const dynamicNodePadding = Math.max(8, chartHeight * 0.02);
-    // D3 Sankey layout
+    
+    // Create a D3 Sankey diagram with customized settings
+    // First flag critical nodes that need special positioning treatment
+    nodeNames.forEach(nodeName => {
+      if (['Operating Loss', 'Income Before Taxes', 'Net Loss'].includes(nodeName)) {
+        // Mark these nodes for special treatment in layout and path calculation
+        if (!nodeMap[nodeName]) nodeMap[nodeName] = {};
+        nodeMap[nodeName].forceTop = true;
+        nodeMap[nodeName].minHeight = 20; // Ensure minimum visibility
+        console.log(`DEBUG: Flagged critical node ${nodeName} for special treatment`);
+      }
+    });
+    
     const sankey = d3.sankey()
-      .nodeWidth(dynamicNodeWidth)
+      .nodeWidth(30) // px wide sankey boxes
       .nodePadding(dynamicNodePadding)
       .size([chartWidth, chartHeight])
       .nodeSort((a, b) => {
-        // Custom vertical ordering: Net Income > Operating Income > Gross Profit > others > Cost of Revenue
-        if (a.name === 'Net Income') return -1;
-        if (b.name === 'Net Income') return 1;
+        // Custom vertical ordering with Operating Loss/Income at the very TOP
+        // Check for flagged critical nodes first
+        if (a.forceTop && !b.forceTop) return -1;
+        if (!a.forceTop && b.forceTop) return 1;
+        
+        // If both or neither are critical, use standard ordering
+        if (a.name === 'Operating Loss') return -1;
+        if (b.name === 'Operating Loss') return 1;
+        // Ensure Income Before Taxes is immediately below Operating Loss
+        if (a.name === 'Income Before Taxes') return -1;
+        if (b.name === 'Income Before Taxes') return 1;
+        // Then other important nodes
         if (a.name === 'Operating Income') return -1;
         if (b.name === 'Operating Income') return 1;
+        if (a.name === 'Net Income') return -1;
+        if (b.name === 'Net Income') return 1;
+        if (a.name === 'Net Loss') return -1;
+        if (b.name === 'Net Loss') return 1;
         if (a.name === 'Gross Profit') return -1;
         if (b.name === 'Gross Profit') return 1;
         if (a.name === 'Cost of Revenue') return 1;
         if (b.name === 'Cost of Revenue') return -1;
         return d3.ascending(a.name, b.name);
-      });
+    });
 
     const sankeyData = {
-      nodes: nodeNames.map(name => ({ name })),
+      nodes: nodeNames.map(name => ({
+        name,
+        // flag critical nodes for top placement
+        forceTop: ['Operating Loss','Income Before Taxes'].includes(name)
+      })),
       links
     };
-    const {nodes, links: layoutLinks} = sankey({...sankeyData});
+    let {nodes, links: layoutLinks} = sankey({...sankeyData}); // Changed const to let
+
+    // --- BEGIN CUSTOM DEPTH ADJUSTMENT FOR INTEREST EXPENSE & IBT ---
+    const opIncNodeForDepth = nodes.find(n => n.name === 'Operating Income');
+    const ibtNodeForDepth = nodes.find(n => n.name === 'Income Before Taxes');
+    const intExpNodeForDepth = nodes.find(n => n.name === 'Interest Expense');
+
+    if (opIncNodeForDepth && ibtNodeForDepth && intExpNodeForDepth) {
+      console.log(`[Depth Adjust] Initial depths from first layout pass: OpInc (${opIncNodeForDepth.depth}), IBT (${ibtNodeForDepth.depth}), IntExp (${intExpNodeForDepth.depth})`);
+
+      let interestExpenseTargetDepth = opIncNodeForDepth.depth + 1;
+      // Only adjust if current depth is less than target, to avoid pulling nodes left or creating cycles if logic is flawed.
+      if (intExpNodeForDepth.depth < interestExpenseTargetDepth) { 
+        console.log(`[Depth Adjust] Adjusting Interest Expense depth from ${intExpNodeForDepth.depth} to ${interestExpenseTargetDepth}`);
+        intExpNodeForDepth.depth = interestExpenseTargetDepth;
+        updateDownstreamDepthsRecursive(intExpNodeForDepth, intExpNodeForDepth.depth, nodes); // 'nodes' is allGraphNodes
+      }
+      
+      // IBT should be after Interest Expense
+      let ibtTargetDepth = intExpNodeForDepth.depth + 1; 
+      if (ibtNodeForDepth.depth < ibtTargetDepth) { // Only adjust if current depth is less
+        console.log(`[Depth Adjust] Adjusting IBT depth from ${ibtNodeForDepth.depth} to ${ibtTargetDepth}`);
+        ibtNodeForDepth.depth = ibtTargetDepth;
+        updateDownstreamDepthsRecursive(ibtNodeForDepth, ibtNodeForDepth.depth, nodes); // 'nodes' is allGraphNodes
+      }
+      console.log(`[Depth Adjust] Custom depths set to (before re-layout): OpInc (${opIncNodeForDepth.depth}), IBT (${ibtNodeForDepth.depth}), IntExp (${intExpNodeForDepth.depth})`);
+
+      // Prepare graph for re-calculation. 'nodes' contains modified depths and all other properties from the first layout.
+      // 'sankeyData.links' (which is 'links' from the closure) holds the original link definitions.
+      const graphForRecalculation = { nodes: nodes, links: sankeyData.links }; 
+      console.log('[Depth Adjust] Re-running Sankey layout with custom depths using modified nodes and original link structures.');
+      
+      // Re-run the layout and reassign to 'nodes' and 'layoutLinks' for subsequent code.
+      ({nodes, links: layoutLinks} = sankey(graphForRecalculation));
+      
+      // Log depths after re-layout to see if they were preserved or re-calculated from topology by sankey()
+      const finalOpIncNode = nodes.find(n => n.name === 'Operating Income');
+      const finalIbtNode = nodes.find(n => n.name === 'Income Before Taxes');
+      const finalIntExpNode = nodes.find(n => n.name === 'Interest Expense');
+      if (finalOpIncNode && finalIbtNode && finalIntExpNode) {
+        console.log(`[Depth Adjust] Depths after re-layout: OpInc (${finalOpIncNode.depth}), IBT (${finalIbtNode.depth}), IntExp (${finalIntExpNode.depth})`);
+      }
+    }
+    // --- END CUSTOM DEPTH ADJUSTMENT ---
+    
+    // CRITICAL: Map the isNegative property from original links to layoutLinks
+    // The sankey layout creates new link objects, so we need to preserve our custom properties
+    layoutLinks.forEach((layoutLink) => {
+      // Find the corresponding original link by matching source and target indices
+      const originalLink = links.find(l => 
+        l.source === layoutLink.source.index && 
+        l.target === layoutLink.target.index
+      );
+      
+      if (originalLink && originalLink.isNegative) {
+        layoutLink.isNegative = true;
+        console.log('[DEBUG] Mapped isNegative to layoutLink:', 
+          layoutLink.source.name, '→', layoutLink.target.name, 'isNegative:', layoutLink.isNegative);
+      }
+    });
+
+    // Debug: Log all layoutLinks to check which should be negative
+    console.log('[DEBUG] All layoutLinks after mapping:');
+    layoutLinks.forEach(link => {
+      console.log(`  ${link.source.name} → ${link.target.name}, isNegative: ${link.isNegative || false}`);
+    });
 
     // Define segmentNodes based on layoutNodes and the input segments data
     // This is used to correctly identify nodes that are segments.
     const segmentNodes = segments && segments.length > 0
       ? nodes.filter(node => segments.some(s => s.segment === node.name))
       : [];
-
-    // Align Cost of Revenue detail nodes under Operating Expenses column
-    const opExpNode = nodes.find(n => n.name === 'Operating Expenses');
-    if (opExpNode) {
-      corDetailNames.forEach(cat => {
-        const detNode = nodes.find(n => n.name === cat.label);
-        if (detNode) {
-          detNode.x0 = opExpNode.x0;
-          detNode.x1 = opExpNode.x1;
-        }
-      });
-    }
-
-    // Move Cost of Revenue to Gross Profit column to shorten revenue→CoR path
+      
+    // Align Cost of Revenue to Gross Profit column to shorten revenue→CoR path
     const costNode = nodes.find(n => n.name === 'Cost of Revenue');
     const grossNode = nodes.find(n => n.name === 'Gross Profit');
     if (costNode && grossNode) {
       costNode.x0 = grossNode.x0;
       costNode.x1 = grossNode.x1;
     }
+    
+    // Reposition cost nodes to align them properly and shorten their paths
+    // First find all the nodes we need to reposition
+    const cogsNode = nodes.find(n => n.name === 'COGS');
+    const depreciationNode = nodes.find(n => (n.name === 'Depreciation' || n.name === 'Depreciation & Amortization'));
+    const operatingExpensesNode = nodes.find(n => n.name === 'Operating Expenses');
+    const sgaNode = nodes.find(n => n.name === 'SG&A Expenses' || n.name === 'SG&A');
+    
+    // Determine target position for cost nodes
+    const targetX = operatingExpensesNode ? operatingExpensesNode.x0 : (grossNode ? grossNode.x0 + 200 : 0);
+    console.log(`[NODE DEBUG] Target x-position for cost nodes: ${targetX}`);
+    
+    // Function to reposition a node and its connected links
+    const repositionNode = (node, nodeName) => {
+      if (!node) return;
+      
+      console.log(`[NODE DEBUG] Found ${nodeName} node to reposition`);
+      
+      // Store original position values before modification
+      const originalX0 = node.x0;
+      const originalX1 = node.x1;
+      
+      // Adjust node position to align with other cost nodes
+      node.x0 = targetX;
+      node.x1 = targetX + 30; // Node width
+      
+      console.log(`[NODE DEBUG] Repositioned ${nodeName} node: x0=${node.x0.toFixed(1)}, x1=${node.x1.toFixed(1)}`);
+      
+      // Now we need to adjust all links connected to this node to match its new position
+      layoutLinks.forEach(link => {
+        // Adjust any links where this node is the target
+        if (link.target === node || (link.target.name === nodeName)) {
+          // Properly modify the link to connect to the new position
+          const linkObject = link.target === node ? link.target : link;
+          linkObject.x0 = node.x0;
+          linkObject.x1 = node.x1;
+          // Update y-coordinates for link end
+          link.y1 = node.y0 + (node.y1 - node.y0) / 2;
+          console.log(`[NODE DEBUG] Adjusted incoming link to ${nodeName}: y1=${link.y1.toFixed(1)}`);
+        }
+        
+        // Adjust any links where this node is the source
+        if (link.source === node || (link.source.name === nodeName)) {
+          // Properly modify the link to connect from the new position
+          const linkObject = link.source === node ? link.source : link;
+          linkObject.x0 = node.x0;
+          linkObject.x1 = node.x1;
+          // Update y-coordinates for link start
+          link.y0 = node.y0 + (node.y1 - node.y0) / 2;
+          console.log(`[NODE DEBUG] Adjusted outgoing link from ${nodeName}: y0=${link.y0.toFixed(1)}`);
+        }
+      });
+    };
+    
+    // Apply special positioning to SG&A, Depreciation and COGS nodes
+    // First find Income Before Taxes to use as reference for horizontal alignment
+    const ibtNode = nodes.find(n => n.name === 'Income Before Taxes');
+    
+    // For Depreciation and COGS, we'll stack them vertically at the bottom
+    const costNodes = [];
+    if (depreciationNode) costNodes.push({ node: depreciationNode, name: 'Depreciation', priority: 1 });
+    if (cogsNode) costNodes.push({ node: cogsNode, name: 'COGS', priority: 2 });
+    
+    // Determine proper vertical spacing for the bottom cost nodes
+    const VERTICAL_GAP = 25; // Gap between cost nodes
+    let lastBottom = operatingExpensesNode ? operatingExpensesNode.y1 + 50 : 300; // Push these lower
+    
+    // Sort cost nodes by priority (order they should appear vertically, top to bottom)
+    costNodes.sort((a, b) => a.priority - b.priority);
+    
+    // Adjust y-positions to stack nodes vertically with proper spacing
+    costNodes.forEach(({ node, name }, index) => {
+      // Store original height to maintain visual size
+      const originalHeight = node.y1 - node.y0;
+      
+      // Position the node below the previous node with gap
+      node.y0 = lastBottom + VERTICAL_GAP;
+      node.y1 = node.y0 + originalHeight;
+      
+      // Immediately update any connected links' vertical positions
+      layoutLinks.forEach(link => {
+        // Update source endpoint if this is the source
+        if (link.source === node || (link.source.name === name)) {
+          link.y0 = node.y0 + (node.y1 - node.y0) / 2;
+          console.log(`[VERTICAL DEBUG] Updated source link for ${name}: y0=${link.y0.toFixed(1)}`);
+        }
+        
+        // Update target endpoint if this is the target
+        if (link.target === node || (link.target.name === name)) {
+          link.y1 = node.y0 + (node.y1 - node.y0) / 2;
+          console.log(`[VERTICAL DEBUG] Updated target link for ${name}: y1=${link.y1.toFixed(1)}`);
+        }
+      });
+      
+      // Update lastBottom for next node
+      lastBottom = node.y1;
+      
+      console.log(`[VERTICAL DEBUG] Positioned ${name} vertically: y0=${node.y0.toFixed(1)}, y1=${node.y1.toFixed(1)}`);
+    });
+    
+    // First handle special positioning for SG&A node to align with Income Before Taxes
+    if (sgaNode && ibtNode) {
+      console.log(`[SG&A DEBUG] Repositioning SG&A to align horizontally with IBT`);
+      
+      // Store original height to maintain visual size
+      const originalHeight = sgaNode.y1 - sgaNode.y0;
+      
+      // Set SG&A's horizontal position to match Income Before Taxes
+      sgaNode.x0 = ibtNode.x0;
+      sgaNode.x1 = ibtNode.x1;
+      
+      // Position it vertically at the same level as Operating Expenses but to the right
+      sgaNode.y0 = operatingExpensesNode ? operatingExpensesNode.y0 : 200;
+      sgaNode.y1 = sgaNode.y0 + originalHeight;
+      
+      console.log(`[SG&A DEBUG] Repositioned SG&A node to align with IBT: x0=${sgaNode.x0.toFixed(1)}, y0=${sgaNode.y0.toFixed(1)}`);
+      
+      // Update all links connected to SG&A to maintain proper connections
+      layoutLinks.forEach(link => {
+        // Update source endpoint if SG&A is the source
+        if (link.source === sgaNode || (link.source.name === 'SG&A' || link.source.name === 'SG&A Expenses')) {
+          link.y0 = sgaNode.y0 + (sgaNode.y1 - sgaNode.y0) / 2;
+          console.log(`[SG&A DEBUG] Updated source link: y0=${link.y0.toFixed(1)}`);
+        }
+        
+        // Update target endpoint if SG&A is the target
+        if (link.target === sgaNode || (link.target.name === 'SG&A' || link.target.name === 'SG&A Expenses')) {
+          link.y1 = sgaNode.y0 + (sgaNode.y1 - sgaNode.y0) / 2;
+          console.log(`[SG&A DEBUG] Updated target link: y1=${link.y1.toFixed(1)}`);
+        }
+      });
+    }
+    
+    // Now apply horizontal repositioning to the remaining cost nodes
+    costNodes.forEach(({ node, name }) => {
+      repositionNode(node, name);
+    });
+    
+    // OVERRIDE the original renderer's text placement for SG&A
+    // Define a custom renderer that will inject directly into SVG creation process
+    const originalCreateTextNodes = window.renderD3Sankey.createTextNodes;
+    if (originalCreateTextNodes) {
+      console.log('[OVERRIDE] Found original text node creator, will override for SG&A');
+    }
+    
+    // AGGRESSIVE intervention: Force the SG&A label position to be below the rect
+    // Add a comprehensive style tag for CSS-based positioning
+    const styleTag = document.createElement('style');
+    styleTag.id = 'sankey-label-fix';
+    styleTag.textContent = `
+      /* Universal selector for SG&A text positioning */
+      text:contains('SG&A') {
+        transform: translateY(30px) !important;
+      }
+      
+      /* Value text that follows SG&A label */
+      text:contains('SG&A') ~ text:contains('$'), text:contains('SG&A Expenses') ~ text:contains('$') {
+        transform: translateY(30px) !important;
+      }
+      
+      /* More aggressive targeting using custom attributes we'll add */
+      text[data-node-type="sga-label"] {
+        transform: translateY(30px) !important;
+        y: attr(data-bottom-position) !important;
+      }
+      
+      text[data-node-type="sga-value"] {
+        transform: translateY(45px) !important;
+        y: attr(data-bottom-position) !important;
+      }
+    `;
+    document.head.appendChild(styleTag);
+    
+    // Register a function to run after SVG rendering that uses a MutationObserver
+    // to ensure our changes persist even if the chart is re-rendered
+    const originalSankeyRenderComplete = window.sankeyRenderComplete;
+    window.sankeyRenderComplete = function() {
+      // First call the original function
+      if (originalSankeyRenderComplete) originalSankeyRenderComplete();
+      
+      console.log('[URGENT] Forcefully repositioning SG&A labels');
+      
+      // DIRECT rewrite approach - create new elements and replace the old ones
+      const fixSGALabels = () => {
+        // Find the SG&A rect - need to be more flexible in our selector
+        // SG&A rect could be at different x positions in different charts
+        // Look for any rect that has an SG&A text label near it
+        const allRects = document.querySelectorAll('rect');
+        const allTexts = document.querySelectorAll('text');
+        let sgaRect = null;
+        let sgaLabel = null;
+        let sgaValue = null;
+        
+        // First find the SG&A label
+        allTexts.forEach(text => {
+          const content = text.textContent || '';
+          if ((content.includes('SG&A') || content.includes('SG&A Expenses')) && !content.includes('$')) {
+            sgaLabel = text;
+            console.log('[FORCE] Found SG&A label:', content);
+          }
+          
+          // Also look for the value text that might accompany SG&A
+          if (content.includes('$') && sgaLabel && !sgaValue) {
+            // This could be the value text for SG&A if it's close to the label
+            const labelRect = sgaLabel.getBoundingClientRect();
+            const valueRect = text.getBoundingClientRect();
+            const distance = Math.sqrt(
+              Math.pow(labelRect.left - valueRect.left, 2) + 
+              Math.pow(labelRect.top - valueRect.top, 2)
+            );
+            
+            // If this text is close to the SG&A label, it's likely the value
+            if (distance < 100) {
+              sgaValue = text;
+              console.log('[FORCE] Found SG&A value:', content);
+            }
+          }
+        });
+        
+        // If we found the SG&A label, now find its associated rect
+        if (sgaLabel) {
+          const labelRect = sgaLabel.getBoundingClientRect();
+          
+          // Find the rect that's closest to the SG&A label
+          let closestRect = null;
+          let closestDistance = Infinity;
+          
+          allRects.forEach(rect => {
+            const rectBox = rect.getBoundingClientRect();
+            const distance = Math.sqrt(
+              Math.pow(labelRect.left - rectBox.left, 2) + 
+              Math.pow(labelRect.top - rectBox.top, 2)
+            );
+            
+            // Update closest rect if this one is closer
+            if (distance < closestDistance) {
+              closestDistance = distance;
+              closestRect = rect;
+            }
+          });
+          
+          // If we found a rect close to the SG&A label, it's likely the SG&A rect
+          if (closestRect && closestDistance < 150) {
+            sgaRect = closestRect;
+            console.log('[FORCE] Found SG&A rect:', sgaRect);
+          }
+        }
+        
+        // If we couldn't find all necessary elements, try again later
+        if (!sgaRect || !sgaLabel) {
+          console.log('[SG&A DEBUG] Could not find all SG&A elements, will retry');
+          return false;
+        }
+        
+        // Get rect dimensions
+        const rectY = parseFloat(sgaRect.getAttribute('y'));
+        const rectHeight = parseFloat(sgaRect.getAttribute('height'));
+        const rectBottom = rectY + rectHeight;
+        
+        // Create a completely new text element to replace the SG&A label
+        const newLabel = sgaLabel.cloneNode(true);
+        newLabel.setAttribute('y', rectBottom + 20);
+        newLabel.setAttribute('alignment-baseline', 'hanging');
+        newLabel.removeAttribute('transform'); // Remove any transform that might interfere
+        newLabel.style.fill = sgaLabel.style.fill;
+        
+        // Add data attributes for CSS targeting
+        newLabel.setAttribute('data-node-type', 'sga-label');
+        newLabel.setAttribute('data-bottom-position', rectBottom + 20);
+        
+        // Set inline styles aggressively
+        newLabel.style.position = 'absolute';
+        newLabel.style.top = (rectBottom + 20) + 'px';
+        newLabel.style.transform = 'translateY(30px)';
+        
+        // Replace the old label
+        sgaLabel.parentNode.replaceChild(newLabel, sgaLabel);
+        console.log(`[FORCE] Replaced SG&A label with new position: y=${rectBottom + 20}`);
+        
+        // If we found the value text, also reposition it
+        if (sgaValue) {
+          const newValue = sgaValue.cloneNode(true);
+          newValue.setAttribute('y', rectBottom + 45);
+          newValue.setAttribute('alignment-baseline', 'hanging');
+          newValue.removeAttribute('transform'); // Remove any transform that might interfere
+          newValue.style.fill = sgaValue.style.fill;
+          
+          // Add data attributes for CSS targeting
+          newValue.setAttribute('data-node-type', 'sga-value');
+          newValue.setAttribute('data-bottom-position', rectBottom + 45);
+          
+          // Set inline styles aggressively
+          newValue.style.position = 'absolute';
+          newValue.style.top = (rectBottom + 45) + 'px';
+          newValue.style.transform = 'translateY(45px)';
+          
+          // Replace the old value
+          sgaValue.parentNode.replaceChild(newValue, sgaValue);
+          console.log(`[FORCE] Replaced SG&A value with new position: y=${rectBottom + 45}`);
+          
+          return true;
+        }
+        
+        return true; // We at least fixed the label
+      };
+      
+      // Try immediately
+      let success = fixSGALabels();
+      
+      // If not successful, retry a few times with increasing delays
+      if (!success) {
+        setTimeout(() => {
+          success = fixSGALabels();
+          if (!success) {
+            setTimeout(fixSGALabels, 500);
+          }
+        }, 200);
+      }
+      
+      // Set up a MutationObserver to watch for changes and reapply our fixes
+      const svgContainer = document.querySelector('#d3-chart');
+      if (svgContainer) {
+        const observer = new MutationObserver((mutations) => {
+          // Check if our SG&A label position needs fixing again
+          setTimeout(fixSGALabels, 100);
+        });
+        
+        // Observe changes to the SVG container
+        observer.observe(svgContainer, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['y', 'transform']
+        });
+      }
+    };
+        
+    // Add a second function to the sankeyRenderComplete function to handle other nodes
+    const originalSankeyRenderCompleteFinal = window.sankeyRenderComplete;
+    window.sankeyRenderComplete = function() {
+      // First call our previous implementation that fixes SG&A
+      if (originalSankeyRenderCompleteFinal) originalSankeyRenderCompleteFinal();
+      
+      console.log('[DEBUG] Running final handler for other nodes');
+      setTimeout(() => {
+        // Handle COGS and Depreciation nodes
+        const nodesToFix = ['COGS', 'Depreciation', 'Depreciation & Amortization'];
+        const allTexts = document.querySelectorAll('text');
+        
+        allTexts.forEach(text => {
+          const content = text.textContent || '';
+          // Check if this text is related to our nodes of interest
+          const matchesNode = nodesToFix.some(nodeName => content.includes(nodeName));
+          
+          if (matchesNode) {
+            // For COGS node
+            if (content.includes('COGS')) {
+              const cogsRect = document.querySelector('rect[x="402"]');
+              if (cogsRect) {
+                const newX = parseFloat(cogsRect.getAttribute('x')) + 15; // center of rect
+                text.setAttribute('x', newX);
+                console.log(`[COGS DEBUG] Updated COGS text position: x=${newX}`);
+              }
+            }
+            
+            // For Depreciation node
+            if (content.includes('Depreciation')) {
+              const depRect = document.querySelector('rect[x="402"][y="450"]');
+              if (depRect) {
+                const newX = parseFloat(depRect.getAttribute('x')) + 15; // center of rect
+                text.setAttribute('x', newX);
+                console.log(`[DEP DEBUG] Updated Depreciation text position: x=${newX}`);
+              }
+            }
+          }
+        });
+      }, 300); // Extra delay to ensure all previous handlers have completed
+    };
+    
+    // Force a direct CSS fix for SG&A text
+    // This runs immediately without waiting for rendering
+    setTimeout(() => {
+      console.log('[DIRECT CSS] Adding SG&A text fix to document head');
+      const style = document.createElement('style');
+      style.textContent = `
+        /* Direct CSS fix for SG&A text */
+        text:contains('SG&A') {
+          transform: translateY(160px) !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }, 100);
 
     // --- POST-PROCESS: Separate rightmost nodes if too close ---
     const rightEdgeThreshold = chartWidth - 40;
@@ -563,13 +1177,15 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
         const shift = prev.y1 + minRightGap - curr.y0;
         curr.y0 += shift;
         curr.y1 += shift;
-        // Also shift all links connected to this node
-        sankeyData.links.forEach(link => {
-          if (link.target === curr) {
-            link.y1 += shift;
-          }
+        console.log(`[NODE DEBUG] Shifted ${curr.name} down by ${shift}px for spacing`);
+        
+        // Update connected links
+        layoutLinks.forEach(link => {
           if (link.source === curr) {
-            link.y0 += shift;
+            link.y0 = curr.y0 + (curr.y1 - curr.y0) / 2;
+          }
+          if (link.target === curr) {
+            link.y1 = curr.y0 + (curr.y1 - curr.y0) / 2;
           }
         });
       }
@@ -607,7 +1223,7 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
   const MIN_NODE_MARGIN = 18; // px
   // Find rightmost x0
   const rightmostX = Math.max(...nodes.map(n => n.x0));
-  const rightNodes = nodes.filter(n => n.x0 === rightmostX).sort((a, b) => a.y0 - b.y0);
+  const rightNodes = sankeyData.nodes.filter(n => n.x0 === rightmostX).sort((a, b) => a.y0 - b.y0);
   // Calculate total height with margins
   let totalHeight = rightNodes.reduce((sum, n) => sum + n._trueHeight, 0) + (rightNodes.length - 1) * MIN_NODE_MARGIN;
   // If totalHeight > chartHeight, proportionally shrink node heights (except maybe largest)
@@ -622,7 +1238,23 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
   nodes.forEach(node => {
     const outgoing = links.filter(l => l.source === node);
     let y = node.y0;
-    outgoing.sort((a, b) => (a.target.y0 || 0) - (b.target.y0 || 0));
+    
+    // Special sorting for Gross Profit node to ensure Operating Loss path is on top
+    if (node.name === 'Gross Profit') {
+      // Custom sort that puts Operating Loss path first (at the top)
+      outgoing.sort((a, b) => {
+        // Operating Loss path comes first (negative = first)
+        if (a.target.name === 'Operating Loss') return -1;
+        if (b.target.name === 'Operating Loss') return 1;
+        // Other paths sorted by target y-position
+        return (a.target.y0 || 0) - (b.target.y0 || 0);
+      });
+      console.log('[Path DEBUG] Sorted Gross Profit outgoing paths to prioritize Operating Loss');
+    } else {
+      // Normal sorting for other nodes
+      outgoing.sort((a, b) => (a.target.y0 || 0) - (b.target.y0 || 0));
+    }
+    
     outgoing.forEach(link => {
       let h = link.value * pxPerValue;
       link._sy0 = y;
@@ -658,6 +1290,8 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
       // Special cases for highest priority nodes
       if (node.name === 'Net Income') return true;
       if (node.name === 'Operating Income') return true;
+      // CRITICAL: Treat Operating Loss like Operating Income for positioning
+      if (node.name === 'Operating Loss') return true;
       const name = node.name.toLowerCase();
       return (
         name.includes('profit') ||
@@ -680,26 +1314,42 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
       columns[x].push(node);
     });
     Object.values(columns).forEach(colNodes => {
+      // Skip grouping for critical columns (OL and IBT)
+      const _olNode = nodes.find(n => n.name === 'Operating Loss');
+      const _ibtNode = nodes.find(n => n.name === 'Income Before Taxes');
+      const _skipCols = [];
+      if (_olNode) _skipCols.push(_olNode.x0);
+      if (_ibtNode) _skipCols.push(_ibtNode.x0);
+      if (_skipCols.includes(colNodes[0].x0)) return;
       // Column-specific override: add spacing for Operating Expenses column
+      const opExpNode = nodes.find(n => n.name === 'Operating Expenses');
       if (opExpNode && Math.abs(colNodes[0].x0 - opExpNode.x0) < 1e-6) {
         const detailLabels = corDetailNames.map(c => c.label);
         colNodes.sort((a, b) => {
-          const getPri = name =>
-            name === 'Operating Income' ? 0 :
-            name === 'Operating Expenses' ? 1 :
-            detailLabels.includes(name) ? 2 :
-            3;
+           const getPri = name =>
+             name === 'Operating Loss' ? 0 :
+             name === 'Income Before Taxes' ? 1 :
+             name === 'Operating Income' ? 2 :
+             name === 'Net Income' ? 3 :
+             name === 'Net Loss' ? 4 :
+             name === 'Operating Expenses' ? 5 :
+             detailLabels.includes(name) ? 6 :
+             7;
           const ap = getPri(a.name), bp = getPri(b.name);
           return ap - bp || a.y0 - b.y0;
         });
         const gapIncomeToOpExp = 10; // px cushion between Operating Income and Operating Expenses
         const gapOpExpToDetails = 60; // px cushion between Operating Expenses and cost details
-        const gapDetailNodes = 10; // px cushion between cost detail nodes
-        let y = colNodes[0] ? colNodes[0].y0 : 0;
+        let y = colNodes[0].y0;
+        if (colNodes[0] && (colNodes[0].name === 'Operating Loss' || colNodes[0].name === 'Income Before Taxes')) {
+          colNodes[0].y0 = colNodes[0].name === 'Operating Loss' ? 0 : -20;
+          colNodes[0].y1 = colNodes[0].y0 + (colNodes[0].y1 - colNodes[0].y0);
+          y = colNodes[0].y1;
+        }
         colNodes.forEach((node, i) => {
           if (i === 1) y += gapIncomeToOpExp;
           if (i === 2) y += gapOpExpToDetails;
-          if (i >= 3) y += gapDetailNodes;
+          if (i >= 3) y += 10; // px cushion between cost detail nodes
           const h = node.y1 - node.y0;
           node.y0 = y;
           node.y1 = y + h;
@@ -708,13 +1358,26 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
         return; // skip default grouping for this column
       }
       // Sort: profit nodes first, then others, then expense nodes
-      colNodes.sort((a, b) => {
-        const aProfit = isProfitNode(a), bProfit = isProfitNode(b);
-        if (aProfit && !bProfit) return -1;
-        if (!aProfit && bProfit) return 1;
-        const aExpense = isExpenseNode(a), bExpense = isExpenseNode(b);
-        if (aExpense && !bExpense) return 1;
-        if (!aExpense && bExpense) return -1;
+       colNodes.sort((a, b) => {
+         // Name-based priority: OL first, then IBT, then OP Inc
+         const namePri = name =>
+           name === 'Operating Loss' ? 0 :
+           name === 'Income Before Taxes' ? 1 :
+           name === 'Operating Income' ? 2 :
+           name === 'Net Income' ? 3 :
+           name === 'Net Loss' ? 4 :
+           isProfitNode({name}) ? 5 :
+           isExpenseNode({name}) ? 7 :
+           6;
+         const ap = namePri(a.name), bp = namePri(b.name);
+         if (ap !== bp) return ap - bp;
+         // fallback to original logic
+         const aProfit = isProfitNode(a), bProfit = isProfitNode(b);
+         if (aProfit && !bProfit) return -1;
+         if (!aProfit && bProfit) return 1;
+         const aExpense = isExpenseNode(a), bExpense = isExpenseNode(b);
+         if (aExpense && !bExpense) return 1;
+         if (!aExpense && bExpense) return -1;
         // Both in same group: for expense group, bring Operating Income children up
         if (aExpense && bExpense) {
           const aFromOpInc = layoutLinks.some(l => l.target === a && l.source.name === 'Operating Income');
@@ -742,84 +1405,281 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
         if (i === lastProfitIdx && firstExpenseIdx > lastProfitIdx) {
           y += MIN_GROUP_GAP;
         }
+        // Add universal spacing between all nodes
+        if (i < colNodes.length - 1) { // Don't add spacing after the last node
+          y += 20;
+        }
       }
     });
-    // Final re-assign link slots after all stacking
-    assignLinkSlots(nodes, layoutLinks);
 
-    // Wave effect: float profit nodes upward progressively
-    const profitNodes = nodes.filter(isProfitNode).sort((a, b) => a.x0 - b.x0);
-    const waveAmp = 50; // increased amplitude for visible wave effect
-    const stepY = profitNodes.length > 1 ? waveAmp / (profitNodes.length - 1) : 0;
-    profitNodes.forEach((n, i) => {
-      n.y0 -= stepY * i;
-      n.y1 -= stepY * i;
-    });
-    assignLinkSlots(nodes, layoutLinks);
 
-    // --- UNIVERSAL MINIMUM VERTICAL GAP BETWEEN LEAF (END) NODES ONLY ---
-    const MIN_LEAF_GAP = 18;
-    const leafColumns = {};
-    nodes.forEach(node => {
-      const isLeaf = !layoutLinks.some(l => l.source === node);
-      if (!isLeaf) return;
-      const x = node.x0;
-      if (!leafColumns[x]) leafColumns[x] = [];
-      leafColumns[x].push(node);
-    });
-    Object.values(leafColumns).forEach(leafNodes => {
-      if (leafNodes.length < 2) return;
-      leafNodes.sort((a, b) => {
-        const aProfit = isProfitNode(a), bProfit = isProfitNode(b);
-        if (aProfit && !bProfit) return -1;
-        if (!aProfit && bProfit) return 1;
-        const aFromOpInc = layoutLinks.some(l => l.target === a && l.source.name === 'Operating Income');
-        const bFromOpInc = layoutLinks.some(l => l.target === b && l.source.name === 'Operating Income');
-        if (aFromOpInc && !bFromOpInc) return -1;
-        if (!aFromOpInc && bFromOpInc) return 1;
-        return a.y0 - b.y0;
+    // Create true UPWARD wave pattern for financial statement nodes
+    console.log('[Wave DEBUG] --- Starting TRUE upward wave positioning ---');
+    
+    // Identify key nodes for the upward wave pattern
+    const opLoss = nodes.find(n => n.name === 'Operating Loss');
+    const ibt = nodes.find(n => n.name === 'Income Before Taxes');
+    const netLoss = nodes.find(n => n.name === 'Net Loss');
+    
+    if (opLoss && ibt) {
+      console.log('[Wave DEBUG] Found essential nodes for upward wave');
+      
+      // Store original heights to maintain their visual size
+      const heightOL = opLoss.y1 - opLoss.y0;
+      const heightIBT = ibt.y1 - ibt.y0;
+      
+      // Position Operating Loss at a moderate height
+      const topPosition = 0; // Starting position for Operating Loss
+      opLoss.y0 = topPosition;
+      opLoss.y1 = opLoss.y0 + heightOL;
+      console.log(`[Wave DEBUG] Operating Loss positioned at top: y0=${opLoss.y0.toFixed(1)}, y1=${opLoss.y1.toFixed(1)}`);
+      
+      // Position Income Before Taxes HIGHER than Operating Loss for upward wave
+      ibt.y0 = opLoss.y0 - 20; // 20px higher than Operating Loss
+      ibt.y1 = ibt.y0 + heightIBT;
+      console.log(`[Wave DEBUG] IBT positioned higher than Operating Loss: y0=${ibt.y0.toFixed(1)}, y1=${ibt.y1.toFixed(1)}`);
+      
+      // Position Net Loss even higher if it exists
+      if (netLoss) {
+        const heightNL = netLoss.y1 - netLoss.y0;
+        netLoss.y0 = ibt.y0 - 20; // 20px higher than IBT
+        netLoss.y1 = netLoss.y0 + heightNL;
+        console.log(`[Wave DEBUG] Net Loss positioned highest: y0=${netLoss.y0.toFixed(1)}, y1=${netLoss.y1.toFixed(1)}`);
+      }
+      
+      // Force all y-coordinates to be at least 0 to stay in view
+      if (ibt.y0 < 0) {
+        const shift = Math.abs(ibt.y0) + 5; // Add 5px padding
+        console.log(`[Wave DEBUG] Shifting all nodes down by ${shift}px to ensure visibility`);
+        
+        // Shift everything down by the negative amount
+        opLoss.y0 += shift;
+        opLoss.y1 += shift;
+        ibt.y0 += shift;
+        ibt.y1 += shift;
+        if (netLoss) {
+          netLoss.y0 += shift;
+          netLoss.y1 += shift;
+        }
+      }
+      
+      // Modify links connected to the wave nodes to ensure proper visual flow
+      // First, find the Gross Profit node to get its dimensions
+      const gpNode = nodes.find(n => n.name === 'Gross Profit');
+      
+      layoutLinks.forEach(link => {
+        // Special handling for Gross Profit to Operating Loss path
+        // Make this path come from the TOP of Gross Profit
+        if (link.source === gpNode && link.target === opLoss) {
+          // Force path to start at top of Gross Profit rect (not middle)
+          link.y0 = gpNode.y0 + 10; // Fixed position near top of Gross Profit
+          console.log(`[Wave DEBUG] Modified GP→OL path to start at top: y0=${link.y0.toFixed(1)}`);
+          
+          // Mark this as a critical path for special styling
+          link.critical = true;
+        }
+        
+        // Normal midpoint updates for Operating Loss
+        if (link.source === opLoss || link.source.name === 'Operating Loss') {
+          link.y0 = opLoss.y0 + (opLoss.y1 - opLoss.y0) / 2;
+          console.log(`[Wave DEBUG] Updated source link for Operating Loss: y0=${link.y0.toFixed(1)}`);
+        }
+        
+        if (link.target === opLoss || link.target.name === 'Operating Loss') {
+          // This is the path coming from Gross Profit - make it arrive at top of Operating Loss
+          if (link.source === gpNode) {
+            link.y1 = opLoss.y0 + 10; // Fixed position near top of Operating Loss
+            console.log(`[Wave DEBUG] Modified GP→OL path to arrive at top: y1=${link.y1.toFixed(1)}`);
+          } else {
+            link.y1 = opLoss.y0 + (opLoss.y1 - opLoss.y0) / 2;
+          }
+        }
+        
+        // Update Income Before Taxes links
+        if (link.source === ibt || link.source.name === 'Income Before Taxes') {
+          link.y0 = ibt.y0 + (ibt.y1 - ibt.y0) / 2;
+          console.log(`[Wave DEBUG] Updated source link for IBT: y0=${link.y0.toFixed(1)}`);
+        }
+        
+        if (link.target === ibt || link.target.name === 'Income Before Taxes') {
+          link.y1 = ibt.y0 + (ibt.y1 - ibt.y0) / 2;
+          console.log(`[Wave DEBUG] Updated target link for IBT: y1=${link.y1.toFixed(1)}`);
+        }
+        
+        // Update Net Loss links if it exists
+        if (netLoss) {
+          if (link.source === netLoss || link.source.name === 'Net Loss') {
+            link.y0 = netLoss.y0 + (netLoss.y1 - netLoss.y0) / 2;
+          }
+          if (link.target === netLoss || link.target.name === 'Net Loss') {
+            link.y1 = netLoss.y0 + (netLoss.y1 - netLoss.y0) / 2;
+          }
+        }
       });
-      let y0 = leafNodes[0].y0;
-      leafNodes.forEach(n => {
-        const h = n.y1 - n.y0;
-        n.y0 = y0;
-        n.y1 = y0 + h;
-        y0 += h + MIN_LEAF_GAP;
-      });
-    });
-    // Final re-assign for leafs
-    assignLinkSlots(nodes, layoutLinks);
-
-    // --- UNIVERSAL MINIMUM GAP BETWEEN REVENUE SEGMENTATION NODES (LEFTMOST COLUMN) ---
-    const MIN_LEFT_GAP = 18;
-    const minX = Math.min(...nodes.map(n => n.x0));
-    const leftNodes = nodes.filter(n => n.x0 === minX);
-    if (leftNodes.length > 1) {
-      leftNodes.sort((a, b) => a.y0 - b.y0);
-      let y1 = leftNodes[0].y0;
-      leftNodes.forEach(n => {
-        const h = n.y1 - n.y0;
-        n.y0 = y1;
-        n.y1 = y1 + h;
-        y1 += h + MIN_LEFT_GAP;
-      });
+      
+      // Link slots will be reassigned globally after all node movements are complete.
+      console.log('[Wave DEBUG] Node positions adjusted for upward wave; link slots will be updated later.');
+    } else {
+      console.log('[Wave DEBUG] Not enough nodes for upward wave effect');
     }
-    // Final re-assign for leftmost column
+    
+    console.log('[Wave DEBUG] --- Wave positioning complete ---');
+    
+    // Ensure minimum spacing after Operating Loss and other wave nodes
+    const MIN_SPACING_FROM_WAVE = 40; // Minimum space between wave nodes and expense nodes
+    
+    // Find the lowest wave node
+    let lowestWaveY = 0;
+    if (opLoss) lowestWaveY = Math.max(lowestWaveY, opLoss.y1);
+    if (ibt) lowestWaveY = Math.max(lowestWaveY, ibt.y1);
+    if (netLoss) lowestWaveY = Math.max(lowestWaveY, netLoss.y1);
+    
+    // Adjust all expense nodes below the wave if they're too close
+    nodes.forEach(node => {
+      if (isExpenseNode(node) && node.y0 < lowestWaveY + MIN_SPACING_FROM_WAVE) {
+        const shift = (lowestWaveY + MIN_SPACING_FROM_WAVE) - node.y0;
+        node.y0 += shift;
+        node.y1 += shift;
+        console.log(`[Wave DEBUG] Shifted ${node.name} down by ${shift}px for spacing`);
+        
+        // Link properties will be fully updated by the global assignLinkSlots call later.
+      }
+    });
+    
+    // Finalize link y-coordinates and widths after all node movements and adjustments
     assignLinkSlots(nodes, layoutLinks);
+
+    // Sort links to ensure Operating Loss path appears on top
+    // Sort links to ensure specific paths appear on top by rendering them later
+    console.log('[Links DEBUG] Sorting links to prioritize Operating Loss path');
+    layoutLinks.sort((a, b) => {
+      const getPriority = (link) => {
+        // Higher number means rendered later (more on top)
+        if (link.source.name === 'Gross Profit' && link.target.name === 'Operating Loss') return 4; // GP -> OL is top-most
+        if (link.source.name === 'Operating Loss') return 3; // Then other links FROM OL
+        if (link.target.name === 'Operating Loss') return 2; // Then other links TO OL
+        return 1; // All other links
+      };
+
+      const priorityA = getPriority(a);
+      const priorityB = getPriority(b);
+
+      // Sort by priority: higher priority value means it comes later in the sorted array.
+      // If priorityA > priorityB, priorityA - priorityB is positive, so 'a' comes after 'b'.
+      return priorityA - priorityB;
+    });
+    console.log('[Links DEBUG] Link sorting complete - Operating Loss path should appear on top');
+    
+    // Create a direct manipulation for link z-index by targeting specific paths
+    console.log('[DOM DEBUG] Adding SVG rendering function to lift important paths to top');
+    
+    // We need to insert this CSS for SVG stacking context
+    // This is the most reliable way to control z-index in SVG
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
+      /* Critical path styling */
+      path.sankey-link[data-path-type="critical"] {
+        fill: #daa520 !important; /* Gold color for critical paths */
+        stroke: #fff !important;
+        stroke-opacity: 0.5 !important;
+        stroke-width: 0.5px !important;
+        fill-opacity: 0.7 !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
+    
+    // This function tags critical paths with special attributes and moves them to the end of the DOM
+    window.sankeyRenderComplete = function() {
+      // First call the original function
+      if (originalSankeyRenderComplete) originalSankeyRenderComplete();
+      
+      console.log('[DOM DEBUG] Tagging and lifting critical paths');
+      
+      // Find and tag all critical paths
+      const allPaths = document.querySelectorAll('path.sankey-link');
+      console.log(`[DOM DEBUG] Processing ${allPaths.length} sankey paths...`);
+      
+      // Find all paths to Operating Loss and mark them
+      allPaths.forEach(path => {
+        // Tag Operating Loss-related paths (from Gross Profit)
+        if ((path.parentNode && path.parentNode.__data__ && 
+            path.parentNode.__data__.source && path.parentNode.__data__.target) &&
+            ((path.parentNode.__data__.source.name === 'Gross Profit' && 
+              path.parentNode.__data__.target.name === 'Operating Loss') ||
+             (path.parentNode.__data__.source.name === 'Operating Loss' && 
+              path.parentNode.__data__.target.name === 'Income Before Taxes'))) {
+          
+          // Tag with data attribute so we can easily identify it
+          path.setAttribute('data-path-type', 'critical');
+          // Force move to end of parent to be on top
+          const parent = path.parentNode;
+          parent.removeChild(path);
+          parent.appendChild(path);
+          console.log('[DOM DEBUG] Tagged and lifted critical path', 
+                     path.parentNode.__data__.source.name, '→', 
+                     path.parentNode.__data__.target.name);
+        }
+      });
+    };
+    
+    // Add script to call our function after page load
+    const script = document.createElement('script');
+    script.textContent = `
+      document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+          if (window.sankeyRenderComplete) window.sankeyRenderComplete();
+        }, 500);
+      });
+    `;
+    document.head.appendChild(script);
+    // end wave
 
     // Color logic - accounts for profitability status
     function nodeColor(name) {
-      if (segments.map(s => s.segment).includes(name) || name === 'Revenue') return '#555'; // grey
+      // Special handling for Operating Loss - use cross-hatch pattern
+      if (name === 'Operating Loss') {
+        console.log('[DEBUG] Applying cross-hatch pattern to Operating Loss node');
+        return 'url(#negative-flow-pattern)';
+      }
+      
+      // Income Before Taxes - use cross-hatch when negative
+      if (name === 'Income Before Taxes' && data.incomeBeforeTax < 0) {
+        console.log('[DEBUG] Applying cross-hatch pattern to negative Income Before Taxes node');
+        return 'url(#negative-flow-pattern)';
+      }
+      
+      // Net Loss - use cross-hatch pattern
+      if (name === 'Net Loss') {
+        console.log('[DEBUG] Applying cross-hatch pattern to Net Loss node');
+        return 'url(#negative-flow-pattern)';
+      }
+      
+      // Gross Profit is always green
+      if (name === 'Gross Profit') {
+        return '#3cb371'; // Always green
+      }
+      
+      // Income nodes are green (except Gross Profit handled above)
+      if (name === 'Operating Income' || 
+          name === 'Income Before Taxes' ||
+          name === 'Net Income' ||
+          name === 'Other Income' ||
+          name === 'Additional Income') {
+        return isProfitable ? '#3cb371' : '#daa520'; // green for profit, gold for loss
+      }
+      
+      // Expense nodes are red
+      if (name === 'Operating Expenses' || 
+          name === 'Cost of Revenue' || 
+          name === 'Income Tax Expense' || 
+          name === 'Interest Expense' ||
+          name === 'Other Expense') {
+        return '#c0392b'; // Red for expenses
+      }
       
       // Adjust for unprofitable companies - make income/profit nodes red instead of green
       if (name === 'Operating Income' && !isProfitable) return '#c0392b'; // dark red for negative operating income
       if (name === 'Net Income' && !isNetProfitable) return '#c0392b'; // dark red for negative net income
-      
-      // Gross profit might be positive even when operating income is negative
-      // Calculate if gross profit is positive
-      const isGrossProfitable = data.grossProfit > 0;
-      if (name === 'Gross Profit' && !isGrossProfitable) return '#c0392b'; // dark red for negative
-      if (name === 'Gross Profit' && isGrossProfitable) return '#3cb371'; // green for positive
       
       // Normal profitable nodes are green
       if (name === 'Operating Income' || name === 'Net Income') return '#3cb371'; // green
@@ -830,7 +1690,13 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
       return '#bbb';
     }
     function linkColor(d) {
-      // Color links from Cost of Revenue red
+      // Negative flows (like Operating Loss) should be red
+      if (d.isNegative) {
+        console.log('[DEBUG] Negative flow detected:', d.source.name, '→', d.target.name);
+        return 'url(#negative-flow-pattern)';
+      }
+      
+      // Cost of Revenue paths are red
       if (d.source.name === 'Cost of Revenue') return '#c0392b';
       
       // All expense paths are red
@@ -951,10 +1817,16 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
     labelGroup = chartGroup.append('g');
     importantNodesForLabels.forEach(d => {
       const isSeg = segments.map(s => s.segment).includes(d.name);
-      const cx = isSeg ? d.x0 - 10 : d.x0 + (d.x1 - d.x0) / 2;
+      const cx = isSeg ? d.x0 - 35 : d.x0 + (d.x1 - d.x0) / 2; // Increased from -20 to -35 for more spacing
       const anchor = isSeg ? 'end' : 'middle';
+      
+      // Debug logging to verify segment detection
+      if (isSeg) {
+        console.log(`[Segment Label] ${d.name}: x0=${d.x0}, cx=${cx} (offset -35)`);
+      }
+      
       const marginText = getMargin(d.name, data);
-      const belowBar = (d.name === 'Cost of Revenue' || d.name === 'Operating Expenses');
+      const belowBar = (d.name === 'Cost of Revenue' || d.name === 'Operating Expenses' || d.name === 'SG&A Expenses');
       let yBase;
       if (!isSeg) {
         // Dynamic vertical offset for below-bar labels
@@ -976,7 +1848,7 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
           }
           // Try below first if enough space
           if (spaceBelow >= labelHeight + minOffset) {
-            yBase = d.y1 + minOffset + labelHeight / 2 + 4; // Nudge down by 4px
+            yBase = d.y1 + minOffset + labelHeight / 2 - 8; // Move up by 12px total (was +4, now -8)
           } else if (spaceAbove >= labelHeight + minOffset) {
             yBase = d.y0 - minOffset - labelHeight / 2;
           } else if (spaceBelow >= spaceAbove) {
@@ -989,12 +1861,12 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
         } else {
           yBase = d.y0 - 22;
         }
-        const isCostDetailNode = ['COGS', 'Depreciation & Amortization', 'Other Cost of Revenue'].includes(d.name);
+        const isCostDetailNode = ['COGS','Depreciation & Amortization','Other Cost of Revenue'].includes(d.name);
         const rightEdge = isCostDetailNode || d.x1 > chartWidth - 40;
         let labelX = cx;
         let labelAnchor = anchor;
         if (rightEdge) {
-          labelX = d.x1 + 10;
+          labelX = d.x1 + 8;
           labelAnchor = 'start';
         }
         const rightEdgeYOffset = rightEdge ? 20 : 0; // Increase Y-offset to align right-edge labels closer to rects
@@ -1008,53 +1880,69 @@ function formatSegmentLabel(segmentName, value, isOther = false) {
 const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
 // Collapsed right-edge labels into one line
         if (rightEdge) {
+          const nodeSpecificLabelGroup = labelGroup.append('g')
+            .attr('id', `label-group-right-${d.id || d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`)
+            .attr('data-label-set-id', `labelset-right-${d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`);
           const displayName = d.name.replace(/\s*expenses?$/i, '');
           const midY = (d.y0 + d.y1) / 2;
           const rectHeight = d.y1 - d.y0;
           // Ensure negative values are displayed with appropriate styling
           // Directly check the global profit status rather than just the local value
           let isNegative = false;
-          let valueToUse = d.value;
-          // Set loss status based on overall company profitability
+          let forceAmount = null;
+          
+          // Force loss labels based on the company's overall profitability status
           if (displayName === 'Operating Income' || displayName.includes('Operating')) {
               isNegative = !isProfitable;
-              valueToUse = -Math.abs(data.operatingIncome); // Force negative for correct display
+              forceAmount = Math.abs(data.operatingIncome);
           }
           if (displayName === 'Operating Loss') {
-              isNegative = true;
-              valueToUse = -Math.abs(data.operatingIncome); // Force negative for correct display
-              d.value = Math.abs(data.operatingIncome); // Set for value label
+              // For Operating Loss nodes, always get the right amount
+              forceAmount = Math.abs(data.operatingIncome);
+              d.value = forceAmount; // Set the actual value for use in the value label
+              isNegative = true; // Operating Loss is always negative
+              d.isNegative = true; // Store on node data for later use
+              console.log('[DEBUG] Operating Loss detected, setting isNegative=true, value=', forceAmount);
           }
           if (displayName === 'Net Income' || displayName.includes('Net')) {
               isNegative = !isNetProfitable;
-              valueToUse = -Math.abs(data.netIncome); // Force negative for correct display
+              forceAmount = Math.abs(data.netIncome);
           }
           if (displayName === 'Net Loss') {
-              isNegative = true;
-              valueToUse = -Math.abs(data.netIncome); // Force negative for correct display
-              d.value = Math.abs(data.netIncome); // Set for value label
+              // For Net Loss nodes, always get the right amount
+              isNegative = true; // Net Loss is always negative by definition
+              forceAmount = Math.abs(data.netIncome);
+              d.value = forceAmount; // Set the actual value for use in the value label
           }
           if (displayName === 'Gross Profit' || displayName.includes('Gross')) {
               isNegative = !isGrossProfitable;
-              valueToUse = -Math.abs(data.grossProfit); // Force negative for correct display
+              forceAmount = Math.abs(data.grossProfit);
           }
           if (displayName === 'Gross Loss') {
-              isNegative = true;
-              valueToUse = -Math.abs(data.grossProfit); // Force negative for correct display
-              d.value = Math.abs(data.grossProfit); // Set for value label
+              // For Gross Loss nodes, always get the right amount
+              forceAmount = Math.abs(data.grossProfit);
+              d.value = forceAmount; // Set the actual value for use in the value label
           }
+          if (displayName === 'Income Before Taxes') {
+              // Income Before Taxes is negative when operating income is negative
+              if (data.operatingIncome < 0) {
+                  isNegative = true;
+                  d.isNegative = true;
+                  forceAmount = Math.abs(data.incomeBeforeTax);
+                  console.log('[DEBUG] Income Before Taxes marked as negative, value=', forceAmount);
+              }
+          }
+          
           // For negative values, display only the label with loss amount already included
-          const displayLabel = isNegative ? formatNodeLabel(displayName, valueToUse) : displayName;
+          const displayLabel = isNegative && forceAmount ? formatNodeLabel(displayName, forceAmount) : displayName;
           // Value for display  
-          const dollarValue = isNegative ? 
-                Math.abs(valueToUse || d.value) : // Use absolute value for the display 
-                d.value;
+          const dollarValue = d.value; // Use the node's value directly
           // --- Smart single-line if rect is small ---
           const SMALL_RECT_HEIGHT = 10; // px, threshold for single-line label
           if (rectHeight < SMALL_RECT_HEIGHT) {
             // Render as one line: "$1.60B - Income Tax"
             // Render as one line, but split into tspans for color
-            const textEl = labelGroup.append('text')
+            const textEl = nodeSpecificLabelGroup.append('text')
               .attr('class', 'nodelabel-right nodelabel-right-single')
               .attr('x', labelX)
               .attr('y', midY)
@@ -1078,7 +1966,7 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
             return;
           }
           // Otherwise, use two-line layout
-          labelGroup.append('text')
+          nodeSpecificLabelGroup.append('text')
             .attr('class', 'nodelabel-right')
             .attr('x', labelX)
             .attr('y', midY - LABEL_VERTICAL_SPACING/2) // Universal spacing above value
@@ -1092,9 +1980,10 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
             .style('stroke', 'white')
             .style('stroke-width', 6)
             .style('stroke-linejoin', 'round')
-            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))')
+            .attr('data-label-set-id', `labelset-right-${d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`);
           // Then add the dollar amount below
-          labelGroup.append('text')
+          nodeSpecificLabelGroup.append('text')
             .attr('class', 'nodelabel-right-value')
             .attr('x', labelX)
             .attr('y', midY + LABEL_VERTICAL_SPACING/2) // Universal spacing below title
@@ -1126,6 +2015,9 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
             // For Operating Loss nodes, always get the right amount
             forceAmount = Math.abs(data.operatingIncome);
             d.value = forceAmount; // Set the actual value for use in the value label
+            isNegative = true; // Operating Loss is always negative
+            d.isNegative = true; // Store on node data for later use
+            console.log('[DEBUG] Operating Loss detected, setting isNegative=true, value=', forceAmount);
         }
         if (d.name === 'Net Income' || d.name.includes('Net Income')) {
             isNegative = !isNetProfitable;
@@ -1133,6 +2025,7 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
         }
         if (d.name === 'Net Loss') {
             // For Net Loss nodes, always get the right amount
+            isNegative = true; // Net Loss is always negative by definition
             forceAmount = Math.abs(data.netIncome);
             d.value = forceAmount; // Set the actual value for use in the value label
         }
@@ -1144,6 +2037,15 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
             // For Gross Loss nodes, always get the right amount
             forceAmount = Math.abs(data.grossProfit);
             d.value = forceAmount; // Set the actual value for use in the value label
+        }
+        if (d.name === 'Income Before Taxes') {
+            // Income Before Taxes is negative when operating income is negative
+            if (data.operatingIncome < 0) {
+                isNegative = true;
+                d.isNegative = true;
+                forceAmount = Math.abs(data.incomeBeforeTax);
+                console.log('[DEBUG] Income Before Taxes marked as negative, value=', forceAmount);
+            }
         }
         
         // If we've detected a loss situation, use the actual values from data
@@ -1164,10 +2066,11 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
           .style('stroke', 'white')
           .style('stroke-width', 6)
           .style('stroke-linejoin', 'round')
-          .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))'); 
+          .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))')
+          .attr('data-label-set-id', `labelset-general-${d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`); 
         if (typeof d.value === 'number' && !isNaN(d.value)) {
           // Consistent negative value styling for dollar amounts
-          const isNegative = d.value < 0;
+          const isNegative = d.isNegative || d.value < 0; // Check node's stored flag first
           
           // Always show the dollar amount for all nodes, including Loss nodes
           {
@@ -1177,7 +2080,7 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
               .attr('y', yBase + VALUE_OFFSET + rightEdgeYOffset + topEdgeYOffset)
               .attr('text-anchor', labelAnchor)
               .attr('alignment-baseline', 'hanging')
-              .text(formatDollars(d.value))
+              .text(formatDollars(isNegative ? -d.value : d.value))
               .style('font-size', '15px')
               .style('font-weight', 'bold')
               .style('fill', isNegative ? '#e74c3c' : nodeSolidColor(d.name)) // Bright red for negative
@@ -1185,7 +2088,8 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
               .style('stroke', 'white')
               .style('stroke-width', 5)
               .style('stroke-linejoin', 'round')
-              .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+              .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))')
+          .attr('data-label-set-id', `labelset-general-${d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`);
           }
         }
         if (d.name === 'Revenue' && growthData[growthKeyMap['Revenue']] != null) {
@@ -1221,7 +2125,8 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
             .style('stroke', 'white')
             .style('stroke-width', 4)
             .style('stroke-linejoin', 'round')
-            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))')
+          .attr('data-label-set-id', `labelset-general-${d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`);
         }
       } else {
         // Universal three-line label logic for left-edge (segment) nodes
@@ -1231,6 +2136,10 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
         const labelFontSize = 13;
         const valueFontSize = 12;
         const centerY = (d.y0 + d.y1) / 2;
+        const leftLabelTextOffset = 15; // Offset for labels to the left of nodes (e.g., Revenue Segments)
+        const nodeSpecificLabelGroup = labelGroup.append('g')
+          .attr('id', `label-group-left-${d.id || d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`)
+          .attr('data-label-set-id', `labelset-left-${d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`);
         // Helper to split a segment name into up to two lines, breaking at spaces or hyphens
         function splitSegmentNameForLines(name) {
           // Prefer breaking at space nearest to middle, or hyphen
@@ -1263,11 +2172,10 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
         const segLines = splitSegmentNameForLines(shortenSegmentName(d.name));
         if (rectHeight >= THREE_LINE_THRESHOLD) {
           // Render as three lines: segment name split across two lines, value on third
-          labelGroup.append('text')
+          nodeSpecificLabelGroup.append('text')
             .attr('class', 'nodelabel-left nodelabel-left-title')
-            .attr('x', cx)
-            .attr('y', centerY - labelFontSize)
-            .attr('text-anchor', anchor)
+            .attr('x', d.x0 - leftLabelTextOffset) // For the combined text in 1-line layoutSize)
+            .attr('text-anchor', 'end')
             .attr('alignment-baseline', 'middle')
             .text(segLines[0] || '')
             .style('font-size', labelFontSize + 'px')
@@ -1279,11 +2187,11 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
             .style('stroke-linejoin', 'round')
             .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
           if (segLines[1]) {
-            labelGroup.append('text')
+            nodeSpecificLabelGroup.append('text')
               .attr('class', 'nodelabel-left nodelabel-left-title')
-              .attr('x', cx)
+              .attr('x', d.x0 - leftLabelTextOffset)
               .attr('y', centerY)
-              .attr('text-anchor', anchor)
+              .attr('text-anchor', 'end')
               .attr('alignment-baseline', 'middle')
               .text(segLines[1])
               .style('font-size', labelFontSize + 'px')
@@ -1295,11 +2203,11 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
               .style('stroke-linejoin', 'round')
               .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
           }
-          labelGroup.append('text')
+          nodeSpecificLabelGroup.append('text')
             .attr('class', 'nodelabel-left nodelabel-left-value')
-            .attr('x', cx)
+            .attr('x', d.x0 - leftLabelTextOffset)
             .attr('y', centerY + labelFontSize + 2)
-            .attr('text-anchor', anchor)
+            .attr('text-anchor', 'end')
             .attr('alignment-baseline', 'middle')
             .text(formatDollars(d.value))
             .style('font-size', valueFontSize + 'px')
@@ -1309,14 +2217,15 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
             .style('stroke', 'white')
             .style('stroke-width', 4)
             .style('stroke-linejoin', 'round')
-            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
+            .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))')
+
         } else if (rectHeight >= TWO_LINE_THRESHOLD) {
           // Render as two lines: segment name and value
-          labelGroup.append('text')
+          nodeSpecificLabelGroup.append('text')
             .attr('class', 'nodelabel-left nodelabel-left-title')
-            .attr('x', cx)
+            .attr('x', d.x0 - leftLabelTextOffset)
             .attr('y', centerY - 4)
-            .attr('text-anchor', anchor)
+            .attr('text-anchor', 'end')
             .attr('alignment-baseline', 'middle')
             .text(segLines.join(' '))
             .style('font-size', labelFontSize + 'px')
@@ -1327,11 +2236,11 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
             .style('stroke-width', 5)
             .style('stroke-linejoin', 'round')
             .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
-          labelGroup.append('text')
+          nodeSpecificLabelGroup.append('text')
             .attr('class', 'nodelabel-left nodelabel-left-value')
-            .attr('x', cx)
+            .attr('x', d.x0 - leftLabelTextOffset)
             .attr('y', centerY + labelFontSize + 2)
-            .attr('text-anchor', anchor)
+            .attr('text-anchor', 'end')
             .attr('alignment-baseline', 'middle')
             .text(formatDollars(d.value))
             .style('font-size', valueFontSize + 'px')
@@ -1344,11 +2253,11 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
             .style('filter', 'drop-shadow(0px 3px 12px rgba(0,0,0,0.35))');
         } else {
           // Collapsed left-edge labels into one line (Title - Dollar Amount)
-          labelGroup.append('text')
+          nodeSpecificLabelGroup.append('text')
             .attr('class', 'nodelabel-left')
-            .attr('x', cx)
+            .attr('x', d.x0 - leftLabelTextOffset)
             .attr('y', centerY)
-            .attr('text-anchor', anchor)
+            .attr('text-anchor', 'end')
             .attr('alignment-baseline', 'middle')
             .text(segLines.join(' ') + ' - ' + formatDollars(d.value))
             .style('font-size', labelFontSize + 'px')
@@ -1362,7 +2271,7 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
         }
         return;
       }
-    });
+    }); // CRITICAL: Must be }); to close nodes.each()
     // Remove stroke and filters, then apply hierarchical text styling
     labelGroup.selectAll('text')
       .style('stroke', 'none')
@@ -1394,6 +2303,228 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
       .style('opacity', 0.7);
 
     // --- UNIVERSAL NODE RENDERING FILTER ---
+    // Remove any duplicate declaration for Operating Loss node
+    
+    // DISABLED: Comprehensive node and path position correction
+    if (false) {
+    // COMPREHENSIVE NODE AND PATH POSITION CORRECTION
+    // Log initial positions for diagnosis
+    console.log('BEFORE POSITION CORRECTION - Critical nodes:', 
+      nodes.filter(n => ['Operating Loss', 'Income Before Taxes', 'Net Loss'].includes(n.name))
+      .map(n => `${n.name}: y0=${n.y0}, y1=${n.y1}`))
+    
+    // Step 1: Fix all node positions - ensure no negative y values
+    nodes.forEach(node => {
+      // Check if this is a critical node or if it has negative position
+      if (node.forceTop || node.y0 < 0) {
+        const originalHeight = Math.max(20, node.y1 - node.y0); // Preserve original height, minimum 20px
+        const originalMidpoint = node.y0 + (node.y1 - node.y0)/2;
+        
+        // Force node to be at top of chart if it has forceTop flag
+        if (node.forceTop) {
+          node.y0 = 0;
+          node.y1 = originalHeight;
+          console.log(`Fixed position for node: ${node.name}, new y0=${node.y0}, y1=${node.y1}`);
+        } 
+        // Otherwise just make sure it's not negative
+        else if (node.y0 < 0) {
+          node.y0 = 0;
+          node.y1 = originalHeight;
+          console.log(`Corrected negative position for node: ${node.name}, new y0=${node.y0}, y1=${node.y1}`);
+        }
+      }
+    });
+    
+    // Step 2: Regenerate all affected path coordinates based on corrected node positions
+    console.log('CRITICAL PATH COORDINATES BEFORE FIXES:');
+    layoutLinks.forEach(link => {
+      const sourceName = link.source.name;  // ADD THIS LINE
+      const targetName = link.target.name;  // ADD THIS LINE
+      
+      // Check if this is a critical path based on source/target nodes
+      if (['Operating Loss', 'Income Before Taxes', 'Net Loss', 'Gross Profit'].includes(sourceName) ||
+    ['Operating Loss', 'Income Before Taxes', 'Net Loss'].includes(targetName)) {
+        console.log(`${sourceName} → ${targetName}: y0=${link.y0.toFixed(2)}, y1=${link.y1.toFixed(2)}`);
+        
+        // Update both source and target y-coordinates based on current node positions
+        const sourceNode = link.source;
+        const targetNode = link.target;
+        
+        // Calculate new midpoints of source and target nodes
+        const sourceY = sourceNode.y0 + (sourceNode.y1 - sourceNode.y0)/2;
+        const targetY = targetNode.y0 + (targetNode.y1 - targetNode.y0)/2;
+        
+        // Update path coordinates
+        link.y0 = sourceY;
+        link.y1 = targetY;
+        
+        console.log(`Fixed path from ${sourceName} to ${targetName}: new y0=${link.y0.toFixed(2)}, y1=${link.y1.toFixed(2)}`);
+      }
+    });
+    
+    // Final check for any disconnected paths
+    let disconnected = 0;
+    let totalPaths = 0;
+    layoutLinks.forEach(link => {
+      totalPaths++;
+      const sourceNode = link.source;
+      const targetNode = link.target;
+      
+      // Check if source or target coordinate is outside node boundaries
+      const sourceY = sourceNode.y0 + (sourceNode.y1 - sourceNode.y0)/2;
+      const targetY = targetNode.y0 + (targetNode.y1 - targetNode.y0)/2;
+      
+      if (Math.abs(link.y0 - sourceY) > 0.5 || Math.abs(link.y1 - targetY) > 0.5) {
+        disconnected++;
+        console.log(`Disconnected path from ${sourceNode.name} to ${targetNode.name}`);
+      }
+    });
+    console.log(`PATH-NODE ALIGNMENT CHECK: Found ${disconnected} disconnected paths out of ${totalPaths} total paths`);
+    
+    // Special handling for Operating Loss node
+    const opLossNode = nodes.find(n => n.name === 'Operating Loss');
+    if (opLossNode) {
+      console.log('TARGETED FIX: Operating Loss node before fix', 
+                { y0: opLossNode.y0, y1: opLossNode.y1, height: opLossNode.y1 - opLossNode.y0 });
+      
+      // Store original heights to maintain their visual size
+      const heightOL = opLossNode.y1 - opLossNode.y0;
+      
+      // Ensure it's at the absolute top with proper height
+      const originalHeight = Math.max(20, opLossNode.y1 - opLossNode.y0);
+      opLossNode.y0 = 0;
+      opLossNode.y1 = originalHeight;
+      
+      // Extra step: Find all paths connected to Operating Loss and ensure they align precisely
+      const opLossNodeMidpoint = opLossNode.y0 + (opLossNode.y1 - opLossNode.y0)/2;
+      
+      // Direct and targeted path adjustment for Operating Loss connections
+      layoutLinks.forEach(link => {
+        // Check if this link connects to Operating Loss
+        if (link.source === opLossNode) {
+          console.log('FIXING Operating Loss outgoing link to', link.target.name);
+          link.y0 = opLossNodeMidpoint; // Fix the source y-coordinate
+        }
+        if (link.target === opLossNode) {
+          // This is the path coming from Gross Profit - make it arrive at top of Operating Loss
+          if (link.source === gpNode) {
+            link.y1 = opLossNodeMidpoint; // Fixed position near top of Operating Loss
+            console.log(`[Wave DEBUG] Modified GP→OL path to arrive at top: y1=${link.y1.toFixed(1)}`);
+          } else {
+            link.y1 = opLossNodeMidpoint; // Fix the target y-coordinate
+          }
+        }
+      });
+      
+      console.log('TARGETED FIX: Operating Loss node after fix', 
+                { y0: opLossNode.y0, y1: opLossNode.y1, height: opLossNode.y1 - opLossNode.y0, midpoint: opLossNodeMidpoint });
+    }
+    // Special handling for Income Before Taxes node
+    const ibcNode = nodes.find(n => n.name === 'Income Before Taxes');
+    if (ibcNode) {
+      console.log('TARGETED FIX: Income Before Taxes node before fix', 
+                { y0: ibcNode.y0, y1: ibcNode.y1, height: ibcNode.y1 - ibcNode.y0 });
+      
+      // Ensure it has proper positioning and sufficient height
+      const minHeight = 20;
+      const originalHeight = Math.max(minHeight, ibcNode.y1 - ibcNode.y0);
+      
+      // Make sure it's positioned at a visible position
+      if (ibcNode.y0 < 0) {
+        ibcNode.y0 = 0;
+      }
+      ibcNode.y1 = ibcNode.y0 + originalHeight;
+      
+      // Calculate the midpoint for path alignment
+      const ibcMidpoint = ibcNode.y0 + (ibcNode.y1 - ibcNode.y0)/2;
+      
+      // Direct and targeted path adjustment for Income Before Taxes connections
+      layoutLinks.forEach(link => {
+        // Check if this link connects to Income Before Taxes
+        if (link.source === ibcNode) {
+          console.log('FIXING Income Before Taxes outgoing link to', link.target.name);
+          link.y0 = ibcMidpoint; // Fix the source y-coordinate
+        }
+        if (link.target === ibcNode) {
+          console.log('FIXING Income Before Taxes incoming link from', link.source.name);
+          link.y1 = ibcMidpoint; // Fix the target y-coordinate
+        }
+      });
+      
+      console.log('TARGETED FIX: Income Before Taxes node after fix', 
+                { y0: ibcNode.y0, y1: ibcNode.y1, height: ibcNode.y1 - ibcNode.y0, midpoint: ibcMidpoint });
+    }
+    
+    // Special handling for Net Loss node
+    const netLossNode = nodes.find(n => n.name === 'Net Loss');
+    if (netLossNode && !isNetProfitable) {
+      console.log('TARGETED FIX: Net Loss node before fix', 
+                { y0: netLossNode.y0, y1: netLossNode.y1, height: netLossNode.y1 - netLossNode.y0 });
+      
+      // Ensure it has sufficient visibility and proper positioning
+      const minHeight = 20;
+      const originalHeight = Math.max(minHeight, netLossNode.y1 - netLossNode.y0);
+      
+      // For Net Loss, make sure it's positioned at a visible position but not necessarily at y=0
+      if (netLossNode.y0 < 0) {
+        netLossNode.y0 = 0;
+      }
+      netLossNode.y1 = netLossNode.y0 + originalHeight;
+      
+      // Calculate the midpoint for path alignment
+      const netLossMidpoint = netLossNode.y0 + (netLossNode.y1 - netLossNode.y0)/2;
+      
+      // Direct and targeted path adjustment for Net Loss connections
+      layoutLinks.forEach(link => {
+        // Check if this link connects to Net Loss
+        if (link.source === netLossNode) {
+          console.log('FIXING Net Loss outgoing link to', link.target.name);
+          link.y0 = netLossMidpoint; // Fix the source y-coordinate
+        }
+        if (link.target === netLossNode) {
+          console.log('FIXING Net Loss incoming link from', link.source.name);
+          link.y1 = netLossMidpoint; // Fix the target y-coordinate
+        }
+      });
+      
+      console.log('TARGETED FIX: Net Loss node after fix', 
+                { y0: netLossNode.y0, y1: netLossNode.y1, height: netLossNode.y1 - netLossNode.y0, midpoint: netLossMidpoint });
+    }
+    }
+    // end disabled manual corrections
+
+    // Debug: Print y0/y1 for critical nodes before final link assignment
+    const criticalNames = ['Operating Loss', 'Income Before Taxes'];
+    nodes.forEach(n => {
+      if (criticalNames.includes(n.name)) {
+        console.log(`[Sankey DEBUG] ${n.name}: y0=${n.y0}, y1=${n.y1}`);
+      }
+    });
+    // Clamp critical nodes to top and update links
+    criticalNames.forEach(name => {
+      const n = nodes.find(d => d.name === name);
+      if (n && n.y0 < 0) {
+        const h = n.y1 - n.y0;
+        n.y0 = 0;
+        n.y1 = h;
+      }
+    });
+    // Update link positions for clamped nodes
+    layoutLinks.forEach(link => {
+      const sourceName = link.source.name;
+      const targetName = link.target.name;
+      if (criticalNames.includes(sourceName)) {
+        const n = nodes.find(d => d.name === sourceName);
+        link.y0 = n.y0 + (n.y1 - n.y0) / 2;
+      }
+      if (criticalNames.includes(targetName)) {
+        const n = nodes.find(d => d.name === targetName);
+        link.y1 = n.y0 + (n.y1 - n.y0) / 2;
+      }
+    });
+    // Final re-assign for leftmost column and all nodes
+    assignLinkSlots(nodes, layoutLinks);
+
     // Render all rectangles for connected nodes regardless of size/value
     const importantNodes = nodes.filter(n => {
       const isConnected = layoutLinks.some(l => l.source === n || l.target === n);
@@ -1401,21 +2532,100 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
       return isConnected && hasName;
     });
 
-    chartGroup.append('g').selectAll('rect')
+    // Render the nodes as rectangles
+    chartGroup.append('g')
+      .selectAll('rect')
       .data(importantNodes)
       .join('rect')
       .attr('x', d => d.x0)
-      .attr('y', d => d.y0)
+      .attr('y', d => d.y0) // Use the modified y0 position
       .attr('width', d => d.x1 - d.x0)
-      .attr('height', d => Math.max(1, d.y1 - d.y0))
+      .attr('height', d => {
+        // For consistent rendering, we need to round heights to exact pixel values
+        // to match the path rendering (which uses the same coordinates)
+        return Math.floor(Math.max(1, d.y1 - d.y0));
+      })
       .attr('fill', d => nodeColor(d.name));
-
+    
     // Draw links
     chartGroup.selectAll('path.sankey-link')
       .data(layoutLinks)
       .join('path')
       .attr('class', 'sankey-link')
       .attr('d', d => {
+        // Special case for Operating Loss link in unprofitable companies
+        if (!isProfitable && d.source.name === 'Gross Profit' && d.target.name === 'Operating Loss') {
+          const x0 = d.source.x0; // Use x0 instead of x1 to start from left edge
+          const x1 = d.target.x0;
+          const y0a = d._sy0, y0b = d._sy1;
+          const y1a = d._ty0, y1b = d._ty1;
+          
+          console.log('[DEBUG] Extending Operating Loss path over Gross Profit rect');
+          
+          // Create a path that covers the rect from left to right
+          const curvature = 0.5;
+          const xi = d3.interpolateNumber(x0, x1);
+          const x2 = xi(curvature), x3 = xi(1 - curvature);
+          
+          // First draw over the rect horizontally, then curve to target
+          const rectEnd = d.source.x1;
+          return [
+            'M', x0, y0a,                    // Start at left edge of rect
+            'L', rectEnd, y0a,               // Draw to right edge of rect
+            'C', x2, y0a, x3, y1a, x1, y1a, // Then curve to target
+            'L', x1, y1b,
+            'C', x3, y1b, x2, y0b, rectEnd, y0b,
+            'L', x0, y0b,                    // Return to left edge
+            'Z'
+          ].join(' ');
+        }
+        
+        // Special case for Revenue to Gross Profit link - enhanced wave with more curvature
+        if (d.source.name === 'Revenue' && d.target.name === 'Gross Profit') {
+          const x0 = d.source.x1, x1 = d.target.x0;
+          const y0a = d._sy0, y0b = d._sy1;
+          
+          // Connect to the BOTTOM of the Gross Profit rect
+          const grossProfitBottom = d.target.y1;
+          const pathHeight = y0b - y0a;
+          const y1a = grossProfitBottom - pathHeight;
+          const y1b = grossProfitBottom;
+          
+          console.log('[DEBUG] Creating enhanced wave for Revenue to Gross Profit path - connecting to bottom');
+          
+          // Use moderate curvature with vertical offset for wave effect
+          const curvature = 0.5;
+          const xi = d3.interpolateNumber(x0, x1);
+          const x2 = xi(curvature), x3 = xi(1 - curvature);
+          const waveOffset = 15; // Reduced from 30 for subtler wave
+          return [
+            'M', x0, y0a,
+            'C', x2, y0a - waveOffset, x3, y1a + waveOffset, x1, y1a,
+            'L', x1, y1b,
+            'C', x3, y1b + waveOffset, x2, y0b - waveOffset, x0, y0b,
+            'Z'
+          ].join(' ');
+        }
+        
+        // Special case for Operating Expenses to SG&A Expenses link - enhanced wave
+        if (d.source.name === 'Operating Expenses' && d.target.name === 'SG&A Expenses') {
+          const x0 = d.source.x1, x1 = d.target.x0;
+          const y0a = d._sy0, y0b = d._sy1;
+          const y1a = d._ty0, y1b = d._ty1;
+          const curvature = 0.5;
+          const xi = d3.interpolateNumber(x0, x1);
+          const x2 = xi(curvature), x3 = xi(1 - curvature);
+          const waveOffset = 10; // Reduced from 25 for subtler wave
+          return [
+            'M', x0, y0a,
+            'C', x2, y0a + waveOffset, x3, y1a - waveOffset, x1, y1a,
+            'L', x1, y1b,
+            'C', x3, y1b - waveOffset, x2, y0b + waveOffset, x0, y0b,
+            'Z'
+          ].join(' ');
+        }
+        
+        // Normal path generation for all other links
         const x0 = d.source.x1, x1 = d.target.x0;
         const y0a = d._sy0, y0b = d._sy1;
         const y1a = d._ty0, y1b = d._ty1;
@@ -1431,9 +2641,17 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
           'Z'
         ].join(' ');
       })
-      .attr('fill', d => linkColor(d))
+      .attr('fill', d => {
+        if (d.isNegative) {
+          console.log('[DEBUG] Negative flow detected:', d.source.name, '→', d.target.name, 'isNegative:', d.isNegative);
+          return 'url(#negative-flow-pattern)';
+        }
+        const color = linkColor(d);
+        console.log('[DEBUG] Regular flow:', d.source.name, '→', d.target.name, 'color:', color);
+        return color;
+      })
       .attr('opacity', 0.5)
-      .attr('stroke', '#bbb')
+      .attr('stroke', d => d.isNegative ? 'url(#negative-flow-pattern)' : linkColor(d))
       .attr('stroke-width', 0); // No outline, just filled band
 
     // Helper to compute the center of a curved Sankey link
@@ -1447,7 +2665,7 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
 
     // --- Add YoY Growth Labels ---
     // For segment-to-Revenue links, show only one YoY label per segment, centered in the segment node, vertically spaced
-    if (segments && segments.length) {
+    if (segments && segments.length > 0) {
       // Calculate vertical spacing and font size for dense segments
       const segmentLinkSources = layoutLinks.filter(l => 
         l.target.name === 'Revenue' && 
@@ -1465,6 +2683,251 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
         minSpacing = Math.max(12, nodeHeight / totalSegs);
       }
       // Prepare label positions for collision avoidance
+    // Helper to check if two bounding boxes overlap
+    function checkOverlap(bbox1, bbox2, padding = 0) {
+      const overlapX = bbox1.x < bbox2.x + bbox2.width + padding && bbox1.x + bbox1.width + padding > bbox2.x;
+      const overlapY = bbox1.y < bbox2.y + bbox2.height + padding && bbox1.y + bbox1.height + padding > bbox2.y;
+      return overlapX && overlapY;
+    }
+
+    // Helper to get the BBox of a label group <g> element in SVG coordinates,
+    // considering its 'transform' attribute.
+    function getLabelGroupSVGScreenBBox(groupElement) {
+      if (!groupElement || typeof groupElement.getBBox !== 'function') {
+        console.warn('[Collision DEBUG] Invalid groupElement to getLabelGroupSVGScreenBBox:', groupElement);
+        return { x: 0, y: 0, width: 0, height: 0, top: 0, right: 0, bottom: 0, left: 0, midY: 0 };
+      }
+      const bbox = groupElement.getBBox(); // BBox in parent's coords, before this element's transform
+
+      const transform = d3.select(groupElement).attr('transform');
+      let currentTranslateX = 0; 
+      let currentTranslateY = 0;
+      if (transform) {
+        const R = /translate\(\s*([0-9.-]+)\s*,\s*([0-9.-]+)\s*\)/;
+        const match = R.exec(transform);
+        if (match) {
+          currentTranslateX = parseFloat(match[1]);
+          currentTranslateY = parseFloat(match[2]);
+        }
+      }
+      
+      return {
+        x: bbox.x + currentTranslateX,
+        y: bbox.y + currentTranslateY,
+        width: bbox.width,
+        height: bbox.height,
+        top: bbox.y + currentTranslateY,
+        right: bbox.x + currentTranslateX + bbox.width,
+        bottom: bbox.y + currentTranslateY + bbox.height,
+        left: bbox.x + currentTranslateX,
+        midY: (bbox.y + currentTranslateY) + (bbox.height / 2)
+      };
+    }
+
+    // --- Function to adjust Text vs (Rect/Path) Collisions with Grouped Movement ---
+    function adjustNodeTextRectCollisions(layoutNodes, padding = 2) {
+    const getBBoxString = (bbox) => `x:${bbox.x.toFixed(1)},y:${bbox.y.toFixed(1)},w:${bbox.width.toFixed(1)},h:${bbox.height.toFixed(1)}`;
+
+  function getTranslateValues(transformString) {
+    if (!transformString) return { translateX: 0, translateY: 0 };
+    const match = /translate\(\s*([0-9.-]+)(?:\s*[, ]\s*([0-9.-]+))?\s*\)/.exec(transformString);
+    if (match) {
+      const x = parseFloat(match[1]);
+      const y = match[2] !== undefined ? parseFloat(match[2]) : 0;
+      return { translateX: x, translateY: y };
+    }
+    return { translateX: 0, translateY: 0 };
+  }
+      console.log('[Collision DEBUG] Starting NEW Text vs (Rect/Path) collision adjustment...');
+  const nodeRects = chartGroup.selectAll('g > rect').nodes().map(r => ({ el: r, type: 'rect', bbox: r.getBBox() }));
+
+  // Get Sankey layout data for smarter collision decisions
+  const allSankeyNodes = layoutNodes; // Use passed-in nodes
+  const maxDepth = d3.max(allSankeyNodes, d => d.depth);
+  const sankeyNodeMap = new Map(allSankeyNodes.map(n => [n.name, n])); // Assuming 'data-label-set-id' uses node.name
+
+  const linkPathElements = chartGroup.selectAll('path.sankey-link');
+  const linkPaths = linkPathElements.data().map((linkDataItem, i) => {
+    const pathElement = linkPathElements.nodes()[i];
+    if (!pathElement) return null;
+    const bbox = pathElement.getBBox();
+    if (bbox.width <= 1 || bbox.height <= 1) return null;
+    return { el: pathElement, type: 'path', bbox: bbox, data: linkDataItem }; // Store original link data
+  }).filter(p => p !== null);
+
+      const allLabelGroupElements = labelGroup.selectAll('g[data-label-set-id]').nodes();
+      console.log(`[Collision DEBUG] Found ${allLabelGroupElements.length} label groups to process.`);
+
+      if (allLabelGroupElements.length === 0) {
+        console.log('[Collision DEBUG] No label groups found to adjust.');
+        return;
+      }
+
+      allLabelGroupElements.forEach(gEl => {
+        const currentTransform = d3.select(gEl).attr('transform');
+        if (currentTransform) {
+          const match = /translate\(\s*([0-9.-]+)\s*,\s*([0-9.-]+)\s*\)/.exec(currentTransform);
+          if (match) {
+            const currentX = parseFloat(match[1]); // Preserve current X
+            const currentY = parseFloat(match[2]); // Preserve current Y
+            d3.select(gEl).attr('transform', `translate(${currentX}, ${currentY})`);
+          } else {
+            d3.select(gEl).attr('transform', 'translate(0,0)');
+          }
+        } else {
+          d3.select(gEl).attr('transform', 'translate(0,0)');
+        }
+      });
+
+      const MAX_GLOBAL_ITERATIONS = 75;
+      const ADJUSTMENT_AMOUNT = 4;
+      let globalIterationCount = 0;
+      let adjustmentsMadeInLastPass = true;
+
+      while (adjustmentsMadeInLastPass && globalIterationCount < MAX_GLOBAL_ITERATIONS) {
+        adjustmentsMadeInLastPass = false;
+        globalIterationCount++;
+        // console.log(`\n[Collision DEBUG] Global Iteration: ${globalIterationCount}`);
+
+        const currentCycleLabelBBoxes = new Map();
+        allLabelGroupElements.forEach(gEl => {
+          currentCycleLabelBBoxes.set(gEl, getLabelGroupSVGScreenBBox(gEl));
+        });
+
+        for (let i = 0; i < allLabelGroupElements.length; i++) {
+          const groupA_element = allLabelGroupElements[i];
+          const groupA_id = d3.select(groupA_element).attr('data-label-set-id') || `group-${i}`;
+          
+          let groupA_workingBBox = getLabelGroupSVGScreenBBox(groupA_element);
+
+      // NEW LOGGING: Initial position of the label group
+      const initialGroupTransform_A = d3.select(groupA_element).attr('transform');
+      const initialTranslate_A = getTranslateValues(initialGroupTransform_A);
+      const groupA_nodeName_for_log = sankeyNodeMap.get(groupA_id) ? sankeyNodeMap.get(groupA_id).name : groupA_id;
+      console.log(`[Collision DEBUG] Processing Label Group for "${groupA_nodeName_for_log}". Initial Y: ${initialTranslate_A.translateY.toFixed(1)}, Initial X: ${initialTranslate_A.translateX.toFixed(1)}, BBox: ${getBBoxString(groupA_workingBBox)}`);
+
+          const transformAttrA = d3.select(groupA_element).attr('transform');
+          let currentTranslateX_A = 0; // To store current X
+          let currentTranslateY_A = 0;
+          // Regex now captures both X and Y, X can be non-zero
+          const matchA = /translate\(\s*([0-9.-]+)\s*,\s*([0-9.-]+)\s*\)/.exec(transformAttrA);
+          if (matchA) {
+            currentTranslateX_A = parseFloat(matchA[1]);
+            currentTranslateY_A = parseFloat(matchA[2]);
+          }
+          
+          const initialY_A_for_turn = currentTranslateY_A;
+          let newTargetY_A = currentTranslateY_A;
+
+          for (const obstacle of [...nodeRects, ...linkPaths]) {
+        let skipCollisionForThisObstacle = false;
+        const groupA_nodeId = d3.select(groupA_element).attr('data-label-set-id');
+        const groupA_sankeyNode = sankeyNodeMap.get(groupA_nodeId);
+
+        if (groupA_sankeyNode && obstacle.type === 'path' && obstacle.data) {
+          // Check if groupA is a right-edge node
+          if (groupA_sankeyNode.depth === maxDepth) {
+        console.log(`[Collision DEBUG] Node "${groupA_sankeyNode.name}" (ID: ${groupA_id}) IS a right-edge node (depth ${groupA_sankeyNode.depth}, maxDepth ${maxDepth}).`);
+            // console.log(`[Collision DEBUG] Right-edge label "${groupA_nodeId}" (depth ${groupA_sankeyNode.depth}) vs path target "${obstacle.data.target.name}". Max depth: ${maxDepth}`);
+            // If it's a right-edge node and the obstacle is a path, check if it's its own incoming link
+            if (obstacle.data.target === groupA_sankeyNode) {
+          const textElementsForLog = d3.select(groupA_element).selectAll('text').nodes();
+          const firstTextContent = textElementsForLog.length > 0 ? d3.select(textElementsForLog[0]).text().substring(0,20)+'...' : 'N/A';
+          console.log(`[Collision DEBUG] Right-edge node "${groupA_sankeyNode.name}" (text: "${firstTextContent}") potential collision with OWN INCOMING path: ${obstacle.data.source.name} -> ${obstacle.data.target.name}. ` +
+                                    `TextGroupBBox: ${getBBoxString(groupA_workingBBox)}, PathBBox: ${getBBoxString(obstacle.bbox)}`);
+              skipCollisionForThisObstacle = true;
+              const textElementsForSkipLog = d3.select(groupA_element).selectAll('text').nodes();
+          const firstTextContentForSkip = textElementsForSkipLog.length > 0 ? d3.select(textElementsForSkipLog[0]).text().substring(0,20)+'...' : 'N/A';
+          console.log(`[Collision DEBUG] SKIPPING collision for right-edge label "${groupA_sankeyNode.name}" (text: "${firstTextContentForSkip}") with its OWN incoming link (Target: "${obstacle.data.target.name}")`);
+            } else {
+              // console.log(`[Collision DEBUG] NOT skipping for "${groupA_nodeId}": path target "${obstacle.data.target.name}" is NOT this node.`);
+            }
+          } else {
+            // console.log(`[Collision DEBUG] Label "${groupA_nodeId}" (depth ${groupA_sankeyNode.depth}) is NOT right-edge (maxDepth ${maxDepth}). No special link skipping.`);
+          }
+        } else if (groupA_sankeyNode && obstacle.type === 'path' && !obstacle.data) {
+          // console.warn(`[Collision DEBUG] Obstacle path for label "${groupA_nodeId}" is missing .data property.`);
+        } else if (!groupA_sankeyNode && obstacle.type === 'path'){
+          // console.warn(`[Collision DEBUG] groupA_sankeyNode not found for ID "${groupA_nodeId}" when checking path obstacle.`);
+        }
+
+        if (!skipCollisionForThisObstacle && checkOverlap(groupA_workingBBox, obstacle.bbox, 0)) { // Use 0 for direct overlap check
+            const textElementsForCollisionLog = d3.select(groupA_element).selectAll('text').nodes();
+            const firstTextContentForCollision = textElementsForCollisionLog.length > 0 ? d3.select(textElementsForCollisionLog[0]).text().substring(0,20)+'...' : 'N/A';
+            const obstacleNodeName = obstacle.type === 'rect' ? (obstacle.el.__data__ ? obstacle.el.__data__.name : 'UnknownRect') : 'N/A';
+            const obstacleSourceNodeName = obstacle.type === 'path' && obstacle.data && obstacle.data.source ? obstacle.data.source.name : 'N/A';
+            const obstacleTargetNodeName = obstacle.type === 'path' && obstacle.data && obstacle.data.target ? obstacle.data.target.name : 'N/A';
+
+            console.log(`[Collision DEBUG] COLLISION! Label Group for "${groupA_sankeyNode ? groupA_sankeyNode.name : groupA_id}" (text: "${firstTextContentForCollision}") ` +
+                                    `TextGroupBBox: ${getBBoxString(groupA_workingBBox)} ` +
+                                    `colliding with ${obstacle.type} of "${obstacle.type === 'rect' ? obstacleNodeName : `${obstacleSourceNodeName} -> ${obstacleTargetNodeName}`}" (ObstacleBBox: ${getBBoxString(obstacle.bbox)}).`);
+              newTargetY_A += ADJUSTMENT_AMOUNT;
+              adjustmentsMadeInLastPass = true;
+              groupA_workingBBox.y += ADJUSTMENT_AMOUNT;
+              groupA_workingBBox.top += ADJUSTMENT_AMOUNT;
+              groupA_workingBBox.bottom += ADJUSTMENT_AMOUNT;
+              groupA_workingBBox.midY += ADJUSTMENT_AMOUNT;
+          }
+            }
+
+          for (let j = 0; j < allLabelGroupElements.length; j++) {
+            if (i === j) continue;
+            const groupB_element = allLabelGroupElements[j];
+            const groupB_snapshotBBox = currentCycleLabelBBoxes.get(groupB_element);
+            if (checkOverlap(groupA_workingBBox, groupB_snapshotBBox, padding)) {
+              if (groupA_workingBBox.midY >= groupB_snapshotBBox.midY - 1e-3) { 
+                newTargetY_A += ADJUSTMENT_AMOUNT;
+                adjustmentsMadeInLastPass = true;
+                groupA_workingBBox.y += ADJUSTMENT_AMOUNT;
+                groupA_workingBBox.top += ADJUSTMENT_AMOUNT;
+                groupA_workingBBox.bottom += ADJUSTMENT_AMOUNT;
+                groupA_workingBBox.midY += ADJUSTMENT_AMOUNT;
+              }
+            }
+          }
+          
+          if (newTargetY_A !== initialY_A_for_turn) {
+            d3.select(groupA_element).attr('transform', `translate(${currentTranslateX_A}, ${newTargetY_A})`);
+          }
+        }
+      }
+
+      if (globalIterationCount >= MAX_GLOBAL_ITERATIONS) {
+        console.warn('[Collision DEBUG] Max global iterations reached. Layout may not be fully resolved.');
+      } else {
+        console.log(`[Collision DEBUG] Collision adjustment completed in ${globalIterationCount} global iterations.`);
+      }
+    }
+
+    // [Cascade] Attempting to run collision adjustments after main D3 transitions.
+    const activeTransitionPromises = [];
+    if (typeof nodeTransition !== 'undefined' && typeof nodeTransition.end === 'function') {
+        console.log('[Cascade] Using nodeTransition.');
+        activeTransitionPromises.push(nodeTransition.end());
+    }
+    if (typeof linkTransition !== 'undefined' && typeof linkTransition.end === 'function') {
+        console.log('[Cascade] Using linkTransition.');
+        activeTransitionPromises.push(linkTransition.end());
+    }
+    // If specific node/link transitions weren't found (or if only one is used, e.g., for both), check for a generic 't'
+    if (activeTransitionPromises.length === 0 && typeof t !== 'undefined' && typeof t.end === 'function') {
+        console.log('[Cascade] Using generic transition object t.');
+        activeTransitionPromises.push(t.end());
+    }
+
+    if (activeTransitionPromises.length > 0) {
+        Promise.all(activeTransitionPromises).then(() => {
+            console.log('[Cascade] Identified D3 transitions ended. Running collision adjustments.');
+            adjustNodeTextRectCollisions(nodes, 10);
+        }).catch(error => {
+            console.error('[Cascade] Error waiting for D3 transitions, running collision adjustments anyway:', error);
+            adjustNodeTextRectCollisions(nodes, 10);
+        });
+    } else {
+        console.warn('[Cascade] No suitable D3 transition objects (nodeTransition, linkTransition, or t) found in scope or they lack .end(). Running collision adjustments immediately. Please ensure these variables are defined and hold the main D3 transitions if this behavior is incorrect.');
+        adjustNodeTextRectCollisions(nodes, 10);
+    }
+
       const labelPos = [];
       chartGroup.selectAll('text.yoy-label-segment')
         .data(segmentLinkSources) // Use segmentLinkSources for this specific labeling
@@ -1512,7 +2975,7 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
       if (!link || !link.source || !link.target) return false;
 
       // If revenue segments are present and this link targets 'Revenue'
-      if (segments && segments.length && link.target.name === 'Revenue') {
+      if (segments && segments.length > 0 && link.target.name === 'Revenue') {
         // Check if the source of this link is one of the defined segment nodes.
         const isSegmentSource = segmentNodes.some(segmentNode => segmentNode.name === link.source.name);
         if (isSegmentSource) {
@@ -1544,6 +3007,118 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
         const yoyPercent = yoyDecimal * 100;
         return (yoyPercent > 0 ? '+' : '') + yoyPercent.toFixed(1) + '% YoY';
       });
+
+    // DYNAMICALLY ADJUST YoY LABELS TO AVOID OVERLAP
+    console.log('[YoY Adjust DEBUG] Starting dynamic YoY label adjustment...');
+    chartGroup.selectAll('text.yoy-label-general').each(function(linkData) {
+      const yoyLabelElement = this;
+      const yoyLabel = d3.select(yoyLabelElement);
+      const yoyLabelText = yoyLabel.text(); // Get text once for logging
+      console.log(`[YoY Adjust DEBUG] Processing YoY Label: ${yoyLabelText}, Link: ${linkData && linkData.source ? linkData.source.name : 'N/A'}->${linkData && linkData.target ? linkData.target.name : 'N/A'}`);
+
+      let yoyBBox;
+      try {
+        yoyBBox = yoyLabelElement.getBBox();
+        console.log(`[YoY Adjust DEBUG]   YoY BBox: x=${yoyBBox.x.toFixed(1)}, y=${yoyBBox.y.toFixed(1)}, w=${yoyBBox.width.toFixed(1)}, h=${yoyBBox.height.toFixed(1)}`);
+      } catch (e) {
+        console.warn(`[YoY Adjust DEBUG]   Could not get BBox for YoY label: ${yoyLabelText}`, e);
+        return;
+      }
+
+      if (!linkData || !linkData.source || !linkData.target || !yoyBBox || yoyBBox.width === 0 || yoyBBox.height === 0) {
+        console.log(`[YoY Adjust DEBUG]   Skipping YoY label ${yoyLabelText} due to invalid data or BBox.`);
+        return;
+      }
+      
+      const potentialCollisionNodesData = [linkData.source, linkData.target];
+      let movedThisYoYLabel = false;
+
+      // console.log(`[YoY Adjust DEBUG]   Potential collision nodes for ${yoyLabelText}: ${potentialCollisionNodesData.map(n=>n.name).join(', ')}`);
+
+      chartGroup.selectAll('.nodelabel, .nodelabel-right, .nodelabel-left, .nodelabel-value').each(function(nodeLabelData) {
+        const nodeLabelElement = this;
+        const nodeLabelText = d3.select(nodeLabelElement).text();
+
+        if (movedThisYoYLabel) return;
+
+        let nodeLabelBBox;
+        try {
+          nodeLabelBBox = nodeLabelElement.getBBox();
+        } catch (e) {
+          // console.warn(`[YoY Adjust DEBUG]     Could not get BBox for node label: "${nodeLabelText}"`, e);
+          return;
+        }
+
+        if (!nodeLabelBBox || nodeLabelBBox.width === 0 || nodeLabelBBox.height === 0) {
+          // console.log(`[YoY Adjust DEBUG]     Skipping node label "${nodeLabelText}" due to invalid BBox.`);
+          return; 
+        }
+        
+        let nodeNameForCheck = 'N/A';
+        let nameSource = 'unknown'; // To track where the name was found
+
+        // 1. Try direct __data__.name on the text element itself (CORRECTED TYPO: .name instead of __data__name)
+        if (nodeLabelText.__data__ && typeof nodeLabelText.__data__.name === 'string' && nodeLabelText.__data__.name.trim() !== '') {
+            nodeNameForCheck = nodeLabelText.__data__.name;
+            nameSource = 'text_data';
+        } else {
+            // 2. Traverse upwards to find parent g.node and its __data__.name
+            let parent = nodeLabelText.parentNode;
+            let depth = 0;
+            let foundOnGNode = false;
+            while (parent && depth < 5) {
+                if (parent.classList && parent.classList.contains('node') && parent.__data__ && typeof parent.__data__.name === 'string' && parent.__data__.name.trim() !== '') {
+                    nodeNameForCheck = parent.__data__.name;
+                    nameSource = `parent_g_node_depth_${depth}`;
+                    foundOnGNode = true;
+                    break; 
+                }
+                parent = parent.parentNode;
+                depth++;
+            }
+            if (nodeNameForCheck === 'N/A') nameSource = 'not_found_via_traversal';
+        }
+
+        // const isNodeRelevant = potentialCollisionNodesData.some(n => n.name === nodeNameForCheck);
+
+        // if (!isNodeRelevant) {
+            // Optional: Log skipped non-relevant elements for debugging if needed, but can be verbose.
+            // console.log(`[YoY Adjust DEBUG]     Skipping Text: "${nodeLabelText.textContent.trim()}" (Sankey Node: "${nodeNameForCheck}", Source: ${nameSource}) - not relevant to YoY for ${linkData.source.name}->${linkData.target.name}.`);
+            // return; // Skip to next textElement if not relevant
+        // }
+
+        // If relevant, log details and proceed with overlap check
+        console.log(`[YoY Adjust DEBUG]     Relevant Text Element: "${nodeLabelText.trim()}" (Belongs to Sankey Node: "${nodeNameForCheck}", Name Source: ${nameSource}). BBox: x=${Math.round(nodeLabelBBox.x)}, y=${Math.round(nodeLabelBBox.y)}, w=${Math.round(nodeLabelBBox.width)}, h=${Math.round(nodeLabelBBox.height)}`);
+
+        // Check for overlap if relevant
+        const overlapX = yoyBBox.x < nodeLabelBBox.x + nodeLabelBBox.width &&
+                         yoyBBox.x + yoyBBox.width > nodeLabelBBox.x;
+        const overlapY = yoyBBox.y < nodeLabelBBox.y + nodeLabelBBox.height &&
+                         yoyBBox.y + yoyBBox.height > nodeLabelBBox.y;
+
+        if (overlapX && overlapY) {
+          console.log(`[YoY Adjust DEBUG]       OVERLAP DETECTED: YoY ("${yoyLabelText}") vs NodeLabel ("${nodeLabelText}")`);
+          const currentYoyCenterY = parseFloat(yoyLabel.attr('y'));
+          const newYoyTop = nodeLabelBBox.y + nodeLabelBBox.height + 5; 
+          const newYoyCenterY = newYoyTop + (yoyBBox.height / 2); 
+
+          console.log(`[YoY Adjust DEBUG]         Current YoY Y: ${currentYoyCenterY.toFixed(1)}, New Proposed YoY Y: ${newYoyCenterY.toFixed(1)} (NodeLabel Bottom: ${(nodeLabelBBox.y + nodeLabelBBox.height).toFixed(1)}, YoY Height: ${yoyBBox.height.toFixed(1)})`);
+
+          if (newYoyCenterY > currentYoyCenterY + 1) { 
+            yoyLabel.attr('y', newYoyCenterY);
+            console.log(`[YoY Adjust DEBUG]         MOVED YoY label "${yoyLabelText}" to Y=${newYoyCenterY.toFixed(2)} to avoid "${nodeLabelText}"`);
+            movedThisYoYLabel = true;
+          } else {
+            console.log(`[YoY Adjust DEBUG]         Overlap detected, but new Y not significantly greater. No move for YoY: "${yoyLabelText}"`);
+            // Do not set movedThisYoYLabel = true here, allow further checks if no significant move was made.
+          }
+        // The 'else if (isYoYForOpExDebug ...)' block previously here was part of an old debugging approach and has been removed.
+        // The general overlap logic should now correctly handle all relevant cases.
+        }
+      });
+    });
+    console.log('[YoY Adjust DEBUG] Finished dynamic YoY label adjustment.');
+    // END DYNAMIC ADJUSTMENT;
 
     // If no segments, do not render segment nodes/links or segment YoY labels
     if (!segments || !segments.length) {
@@ -1620,6 +3195,139 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
       style.id = 'd3-tooltip-style';
       style.innerHTML = `.d3-tooltip { pointer-events: none; transition: opacity 0.1s; }`;
       document.head.appendChild(style);
+      
+// ADD VERTICAL OFFSETS TO CREATE NATURAL WAVES
+// This ensures the Sankey diagram has beautiful flowing curves instead of straight lines
+nodes.forEach(node => {
+  let offsetY = 0;
+  
+  // For Gross Profit, move it slightly down for unprofitable companies
+  // This creates a natural wave from Revenue flowing up into it
+  if (node.name === 'Gross Profit' && !isProfitable) {
+    offsetY = 10; // Move down 10 pixels
+  }
+  
+  // For SG&A Expenses, move it down to create a wave from Operating Expenses
+  else if (node.name === 'SG&A Expenses' || node.name === 'SG&A') {
+    offsetY = 35; // Increased from 25 pixels for more noticeable offset
+  }
+  
+  // For Cost of Revenue, move it slightly up
+  else if (node.name === 'Cost of Revenue') {
+    offsetY = -8; // Move up 8 pixels
+  }
+  
+  // For Operating Loss, keep at top (no offset)
+  else if (node.name === 'Operating Loss') {
+    offsetY = 0;
+  }
+  
+  // For Income Before Taxes, slight downward movement
+  else if (node.name === 'Income Before Taxes') {
+    offsetY = 5;
+  }
+  
+  // Apply the offset to both y0 and y1
+  if (offsetY !== 0) {
+    node.y0 += offsetY;
+    node.y1 += offsetY;
+    
+    console.log(`[Wave Offset] ${node.name}: offset=${offsetY}, new y0=${node.y0}, y1=${node.y1}`);
+  }
+});
+  
+// CRITICAL: Update all link positions to match the new node positions
+// This ensures paths connect properly to the offset nodes
+layoutLinks.forEach(link => {
+  // Recalculate where links connect based on flow conservation
+  // This is critical to ensure the math is correct after offsetting nodes
+  
+  // For links where we've moved the source node
+  if (link.source.name === 'Cost of Revenue' || 
+      (link.source.name === 'Gross Profit' && !isProfitable) ||
+      link.source.name === 'SG&A Expenses' ||
+      link.source.name === 'Income Before Taxes') {
+    // The link should follow the node's movement
+    const nodeOffset = link.source.y0 - link.sy;
+    if (nodeOffset !== 0 && link.sy !== undefined) {
+      link.sy += nodeOffset;
+    }
+  }
+  
+  // For links where we've moved the target node
+  if (link.target.name === 'Cost of Revenue' || 
+      (link.target.name === 'Gross Profit' && !isProfitable) ||
+      link.target.name === 'SG&A Expenses' ||
+      link.target.name === 'Income Before Taxes') {
+    // The link should follow the node's movement
+    const nodeOffset = link.target.y0 - link.ty;
+    if (nodeOffset !== 0 && link.ty !== undefined) {
+      link.ty += nodeOffset;
+    }
+  }
+});
+
+  // Custom alignment for Interest Expense node position (X and Y)
+  console.log('!!! REACHED CUSTOM INTEREST EXPENSE ALIGNMENT BLOCK !!!'); 
+  console.log('[Custom Alignment DEBUG] All node names before find:', nodes.map(n => n.name));
+  const incomeBeforeTaxesNode = nodes.find(n => n.name === 'Income Before Taxes');
+  console.log('[Custom Alignment DEBUG] incomeBeforeTaxesNode:', incomeBeforeTaxesNode ? incomeBeforeTaxesNode.name : 'not found');
+
+  console.log('[Custom Alignment DEBUG] Attempting to find Interest Expense node...');
+  const interestExpenseNode = nodes.find(n => n.name === 'Interest' || n.name === 'Interest Expense');
+  console.log('[Custom Alignment DEBUG] interestExpenseNode:', interestExpenseNode ? interestExpenseNode.name : 'not found');
+
+  console.log('[Custom Alignment DEBUG] Checking if both nodes were found...');
+  const ibtNodeExists = !!incomeBeforeTaxesNode;
+  const ieNodeExists = !!interestExpenseNode;
+  console.log(`[Custom Alignment DEBUG] Pre-check: incomeBeforeTaxesNode exists? ${ibtNodeExists}, interestExpenseNode exists? ${ieNodeExists}`);
+  console.log('[Custom Alignment DEBUG] incomeBeforeTaxesNode object (pre-check):', incomeBeforeTaxesNode);
+  console.log('[Custom Alignment DEBUG] interestExpenseNode object (pre-check):', interestExpenseNode);
+
+  const conditionMet = incomeBeforeTaxesNode && interestExpenseNode;
+  console.log('[Custom Alignment DEBUG] Condition (incomeBeforeTaxesNode && interestExpenseNode) evaluated to:', conditionMet);
+
+  if (conditionMet) {
+    console.log(`[Custom Alignment DEBUG] Both nodes found. Proceeding with alignment.`);
+    console.log(`[Custom Alignment DEBUG] Found 'Income Before Taxes' node: x0=${incomeBeforeTaxesNode.x0}, y0=${incomeBeforeTaxesNode.y0}, x1=${incomeBeforeTaxesNode.x1}, y1=${incomeBeforeTaxesNode.y1}`);
+    console.log(`[Custom Alignment DEBUG] Found 'Interest Expense' node: x0=${interestExpenseNode.x0}, y0=${interestExpenseNode.y0}, x1=${interestExpenseNode.x1}, y1=${interestExpenseNode.y1}`);
+
+    const padding = 10; // Define padding between nodes
+    const originalInterestExpenseHeight = interestExpenseNode.y1 - interestExpenseNode.y0;
+
+    // Align X coordinates
+    interestExpenseNode.x0 = incomeBeforeTaxesNode.x0;
+    interestExpenseNode.x1 = incomeBeforeTaxesNode.x1;
+
+    // Position Interest Expense Y coordinates below Income Before Taxes
+    interestExpenseNode.y0 = incomeBeforeTaxesNode.y1 + padding;
+    interestExpenseNode.y1 = interestExpenseNode.y0 + originalInterestExpenseHeight;
+
+    console.log(`[Custom Alignment DEBUG] Adjusted 'Interest Expense' node: x0=${interestExpenseNode.x0}, y0=${interestExpenseNode.y0}, x1=${interestExpenseNode.x1}, y1=${interestExpenseNode.y1}`);
+
+    // Log information about the link from Operating Income to Interest Expense
+    if (operatingIncomeNode) {
+        const relevantLink = layoutLinks.find(l =>
+            l.source === operatingIncomeNode &&
+            l.target === interestExpenseNode
+        );
+        if (relevantLink) {
+            // Log current target point of the link. assignLinkSlots will use the updated node coords.
+            console.log(`[Custom Alignment Link Check] Link ${relevantLink.source.name} -> ${relevantLink.target.name}. Node target coords (pre-slot-reassignment): target.x0=${relevantLink.target.x0.toFixed(1)}, target.y0+height/2=${(relevantLink.target.y0 + (relevantLink.target.y1 - relevantLink.target.y0)/2).toFixed(1)}`);
+        } else {
+            console.warn(`[Custom Alignment] Could not find link from '${operatingIncomeNode.name}' to '${interestExpenseNode.name}' for logging.`);
+        }
+    } else {
+        console.warn("[Custom Alignment] 'Operating Income' node not found for link logging.");
+    }
+
+  } else {
+    if (!incomeBeforeTaxesNode) console.warn("[Custom Alignment] 'Income Before Taxes' node not found for alignment.");
+    if (!interestExpenseNode) console.warn("[Custom Alignment] 'Interest' or 'Interest Expense' node not found for alignment.");
+  }
+
+
+
     }
   };
 });

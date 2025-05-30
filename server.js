@@ -32,6 +32,14 @@ app.use(express.static(path.join(__dirname)));
 // Parse JSON request bodies
 app.use(express.json());
 
+// Add headers to prevent caching
+app.use((req, res, next) => {
+  res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.header('Pragma', 'no-cache');
+  res.header('Expires', '0');
+  next();
+});
+
 // Mount the API router at /api
 app.use('/api', apiRouter);
 
