@@ -1524,6 +1524,41 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
     }
     
     console.log('[Wave DEBUG] --- Wave positioning complete ---');
+
+    console.log('CASCADE_DEBUG_POINT_A: Immediately before custom block');
+    // [Cascade Custom Alignment] Position Interest Expense below Income Before Taxes
+    console.log('!!! REACHED CUSTOM INTEREST EXPENSE ALIGNMENT BLOCK !!!');
+    const incomeBeforeTaxesNode = nodes.find(n => n.name === 'Income Before Taxes');
+    const interestExpenseNode = nodes.find(n => n.name === 'Interest Expense');
+    const padding = 10; // Define padding
+
+    if (incomeBeforeTaxesNode && interestExpenseNode) {
+        console.log(`[Custom Alignment DEBUG] Found 'Income Before Taxes' node: x0=${incomeBeforeTaxesNode.x0.toFixed(1)}, y0=${incomeBeforeTaxesNode.y0.toFixed(1)}, x1=${incomeBeforeTaxesNode.x1.toFixed(1)}, y1=${incomeBeforeTaxesNode.y1.toFixed(1)}`);
+        console.log(`[Custom Alignment DEBUG] Found 'Interest Expense' node (before alignment): x0=${interestExpenseNode.x0.toFixed(1)}, y0=${interestExpenseNode.y0.toFixed(1)}, x1=${interestExpenseNode.x1.toFixed(1)}, y1=${interestExpenseNode.y1.toFixed(1)}`);
+
+        // Vertical alignment
+        const interestExpenseHeight = interestExpenseNode.y1 - interestExpenseNode.y0;
+        interestExpenseNode.y0 = incomeBeforeTaxesNode.y1 + padding;
+        interestExpenseNode.y1 = interestExpenseNode.y0 + interestExpenseHeight;
+
+        // Horizontal alignment
+        const originalInterestExpenseWidth = interestExpenseNode.x1 - interestExpenseNode.x0;
+        interestExpenseNode.x0 = incomeBeforeTaxesNode.x0;
+        interestExpenseNode.x1 = interestExpenseNode.x0 + originalInterestExpenseWidth;
+
+        interestExpenseNode.customAligned = true; // Flag that this node has been custom positioned
+
+        console.log(`[Custom Alignment DEBUG] 'Interest Expense' node (after alignment): x0=${interestExpenseNode.x0.toFixed(1)}, y0=${interestExpenseNode.y0.toFixed(1)}, x1=${interestExpenseNode.x1.toFixed(1)}, y1=${interestExpenseNode.y1.toFixed(1)}, customAligned=${interestExpenseNode.customAligned}`);
+    } else {
+        if (!incomeBeforeTaxesNode) {
+            console.warn("[Custom Alignment DEBUG] 'Income Before Taxes' node NOT FOUND for custom alignment.");
+        }
+        if (!interestExpenseNode) {
+            console.warn("[Custom Alignment DEBUG] 'Interest Expense' node NOT FOUND for custom alignment.");
+        }
+    }
+    // --- End of [Cascade Custom Alignment] ---
+    console.log('CASCADE_DEBUG_POINT_C: Immediately after custom block, before y-coord check');
     
     // Ensure minimum spacing after Operating Loss and other wave nodes
     const MIN_SPACING_FROM_WAVE = 40; // Minimum space between wave nodes and expense nodes
@@ -1536,7 +1571,7 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
     
     // Adjust all expense nodes below the wave if they're too close
     nodes.forEach(node => {
-      if (isExpenseNode(node) && node.y0 < lowestWaveY + MIN_SPACING_FROM_WAVE) {
+      if (isExpenseNode(node) && !node.customAligned && node.y0 < lowestWaveY + MIN_SPACING_FROM_WAVE) {
         const shift = (lowestWaveY + MIN_SPACING_FROM_WAVE) - node.y0;
         node.y0 += shift;
         node.y1 += shift;
@@ -2861,7 +2896,45 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
             console.log(`[Collision DEBUG] COLLISION! Label Group for "${groupA_sankeyNode ? groupA_sankeyNode.name : groupA_id}" (text: "${firstTextContentForCollision}") ` +
                                     `TextGroupBBox: ${getBBoxString(groupA_workingBBox)} ` +
                                     `colliding with ${obstacle.type} of "${obstacle.type === 'rect' ? obstacleNodeName : `${obstacleSourceNodeName} -> ${obstacleTargetNodeName}`}" (ObstacleBBox: ${getBBoxString(obstacle.bbox)}).`);
-              newTargetY_A += ADJUSTMENT_AMOUNT;
+
+              // --- BEGIN CUSTOM LOGIC for Interest Expense vs OpEx->Marketing Path ---
+              let collisionResolvedByNodeMove = false;
+              const isInterestExpenseText = groupA_sankeyNode && groupA_sankeyNode.name === 'Interest Expense';
+              const isOpExToMarketingPath = obstacle.type === 'path' && obstacle.data &&
+                                            obstacle.data.source.name === 'Operating Expenses' &&
+                                            obstacle.data.target.name === 'Marketing Expenses';
+
+              if (isInterestExpenseText && isOpExToMarketingPath) {
+                const marketingNodeData = sankeyNodeMap.get('Marketing Expenses');
+                if (marketingNodeData && !marketingNodeData.lockedByIECollision) {
+                  console.log(`[Custom Collision RULE] Moving 'Marketing Expenses' node (${marketingNodeData.name}) due to 'Interest Expense' text collision with 'OpEx -> Marketing' path.`);
+                  const moveAmount = 15; // Pixels to move the node down
+                  marketingNodeData.y0 += moveAmount;
+                  marketingNodeData.y1 += moveAmount;
+                  marketingNodeData.lockedByIECollision = true; // Lock for *this current* call to adjustNodeTextRectCollisions
+                  marketingNodeData.lockedByIECollision_flag_for_dom_update = true; // Signal that this node's DOM needs update
+                  window.markSankeyNeedsNodeUpdate = true;    // Signal main render loop to update DOM and re-run collisions
+                  console.log(`[Custom Collision RULE] 'Marketing Expenses' new y0: ${marketingNodeData.y0.toFixed(1)}, y1: ${marketingNodeData.y1.toFixed(1)}`);
+                  adjustmentsMadeInLastPass = true; // A change was made that might affect other elements
+                  collisionResolvedByNodeMove = true;   // This specific collision is handled by node move
+                } else if (marketingNodeData && marketingNodeData.lockedByIECollision) {
+                  console.log(`[Custom Collision RULE] 'Marketing Expenses' node already moved this pass for this rule. Default text push for this specific path still suppressed.`);
+                  collisionResolvedByNodeMove = true; // Still suppress default text push for this specific path collision
+                } else if (!marketingNodeData) {
+                  console.warn("[Custom Collision RULE] Could not find 'Marketing Expenses' node data to move.");
+                }
+              }
+              // --- END CUSTOM LOGIC ---
+
+              if (!collisionResolvedByNodeMove) {
+                // Default behavior: push the text down if not handled by custom node move
+                newTargetY_A += ADJUSTMENT_AMOUNT;
+              } else {
+                // If resolved by node move, we still count it as an adjustment for the outer loop's sake,
+                // but the text itself (groupA_workingBBox) isn't immediately shifted here by the default rule.
+                // The node move will change the landscape, and subsequent collision checks will handle remaining issues.
+              }
+
               adjustmentsMadeInLastPass = true;
               groupA_workingBBox.y += ADJUSTMENT_AMOUNT;
               groupA_workingBBox.top += ADJUSTMENT_AMOUNT;
@@ -2909,24 +2982,89 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
         console.log('[Cascade] Using linkTransition.');
         activeTransitionPromises.push(linkTransition.end());
     }
-    // If specific node/link transitions weren't found (or if only one is used, e.g., for both), check for a generic 't'
     if (activeTransitionPromises.length === 0 && typeof t !== 'undefined' && typeof t.end === 'function') {
         console.log('[Cascade] Using generic transition object t.');
         activeTransitionPromises.push(t.end());
     }
 
+    // --- BEGIN MODIFICATION FOR NODE UPDATE & RE-COLLISION ---
+    let maxCollisionLoop = 3; // Prevent infinite loops
+    let currentCollisionLoop = 0;
+    // graph.nodes and graph.links are the ones used by sankey.update()
+    // 'nodes' and 'links' variables in this scope should map to graph.nodes and graph.links
+
+    function runCollisionCycle() {
+        currentCollisionLoop++;
+        if (currentCollisionLoop > maxCollisionLoop) {
+            console.warn('[Cascade] Max collision loop iterations reached. Aborting further node/text adjustments.');
+            return;
+        }
+
+        // Reset locks before each collision pass
+        // Ensure 'nodes' here is the same array of node data objects used throughout renderD3Sankey
+        nodes.forEach(n => {
+            if (n.lockedByIECollision) {
+                 // console.log(`[Cascade] Resetting 'lockedByIECollision' for ${n.name} for new collision pass.`);
+            }
+            n.lockedByIECollision = false; // This lock is for the *current* call to adjustNodeTextRectCollisions
+        });
+        window.markSankeyNeedsNodeUpdate = false; // Reset before running adjustments
+
+        console.log(`[Cascade] Running collision adjustments (Pass ${currentCollisionLoop})...`);
+        adjustNodeTextRectCollisions(nodes, 10); // Pass the correct node data array
+
+        if (window.markSankeyNeedsNodeUpdate) {
+            console.log('[Cascade] Node data was updated by custom rule. Re-rendering affected elements and re-running collision check.');
+
+            // 1. Update DOM for nodes that were programmatically moved
+            let nodeMovedInDom = false;
+            nodes.forEach(nodeData => {
+                if (nodeData.name === 'Marketing Expenses' && nodeData.lockedByIECollision_flag_for_dom_update) {
+                     chartGroup.selectAll('.node')
+                        .filter(d => d === nodeData) // Filter by data object reference
+                        .select('rect')
+                        .attr('y', d => d.y0)
+                        .attr('height', d => Math.max(0.1, d.y1 - d.y0));
+                     console.log(`[Cascade] Updated DOM for '${nodeData.name}' rect to y0: ${nodeData.y0.toFixed(1)}, height: ${(nodeData.y1 - nodeData.y0).toFixed(1)}`);
+                     nodeData.lockedByIECollision_flag_for_dom_update = false; // Reset this specific flag
+                     nodeMovedInDom = true;
+                }
+            });
+
+            if (nodeMovedInDom) {
+                // 2. Update all links using sankey.update() and re-applying the path generator.
+                // This ensures links correctly connect to potentially moved nodes.
+                // 'graph' should be {nodes, links} using the up-to-date nodes array.
+                sankey.update({nodes: nodes, links: links}); 
+                
+                chartGroup.selectAll('path.sankey-link')
+                    .attr('d', sankey.link()) 
+                    .style('stroke-width', d => Math.max(1, d.width));
+                console.log('[Cascade] Updated all link paths after node move.');
+            } else {
+                console.log('[Cascade] markSankeyNeedsNodeUpdate was true, but no specific node DOM update was triggered by lockedByIECollision_flag_for_dom_update.');
+            }
+
+            // 3. Re-run the collision cycle because the layout has changed
+            runCollisionCycle();
+        } else {
+            console.log('[Cascade] No further node updates required by collision logic on pass ' + currentCollisionLoop + '.');
+        }
+    }
+
     if (activeTransitionPromises.length > 0) {
         Promise.all(activeTransitionPromises).then(() => {
-            console.log('[Cascade] Identified D3 transitions ended. Running collision adjustments.');
-            adjustNodeTextRectCollisions(nodes, 10);
+            console.log('[Cascade] Identified D3 transitions ended. Starting collision adjustment cycle.');
+            runCollisionCycle();
         }).catch(error => {
-            console.error('[Cascade] Error waiting for D3 transitions, running collision adjustments anyway:', error);
-            adjustNodeTextRectCollisions(nodes, 10);
+            console.error('[Cascade] Error waiting for D3 transitions, starting collision adjustment cycle anyway:', error);
+            runCollisionCycle();
         });
     } else {
-        console.warn('[Cascade] No suitable D3 transition objects (nodeTransition, linkTransition, or t) found in scope or they lack .end(). Running collision adjustments immediately. Please ensure these variables are defined and hold the main D3 transitions if this behavior is incorrect.');
-        adjustNodeTextRectCollisions(nodes, 10);
+        console.warn('[Cascade] No suitable D3 transition objects found. Starting collision adjustment cycle immediately.');
+        runCollisionCycle();
     }
+    // --- END MODIFICATION ---
 
       const labelPos = [];
       chartGroup.selectAll('text.yoy-label-segment')
