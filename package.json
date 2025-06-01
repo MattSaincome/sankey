@@ -17,6 +17,7 @@
     "serverless-http": "^3.2.0"
   },
   "devDependencies": {
+    "eslint": "^9.28.0",
     "nodemon": "^3.1.10"
   },
   "engines": {

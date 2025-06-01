@@ -1,2 +1,1 @@
-we have built a working sankey d3 income statement chart widget. we are now working to make it better and more accurate. 
-The key thing we are working on is visually overlapping elements -- we want them all to be visually readable. We want every chart to look good regardless of company.
+we are refining the post porcessor so that every element of every sankey chart is easily readable and the chart is easy to understand. We want no collisions and we want the chart to be easy to read and understand
