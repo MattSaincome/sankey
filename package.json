@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "build": "echo 'Build step complete'",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "netlify-dev": "netlify dev"
   },
   "dependencies": {
     "dompurify": "^3.2.5",

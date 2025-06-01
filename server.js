@@ -6,7 +6,7 @@ const express = require('express');
 const app = express();
 // Create a dedicated router for API endpoints
 const apiRouter = express.Router();
-const PORT = process.env.PORT || 3000;
+const PREFERRED_PORT = process.env.PORT || 3000;
 const API_KEY = process.env.FMP_API_KEY;
 if (!API_KEY) {
   throw new Error('FMP_API_KEY is not set in environment variables.');
@@ -946,7 +946,30 @@ apiRouter.all('*', (req, res) => {
 });
 
 if (require.main === module && !process.env.NETLIFY_DEV) {
-  app.listen(PORT, function () {
-    console.log('Server running on http://localhost:' + PORT);
-  });
+  const startServer = (portToTry) => {
+    const server = app.listen(portToTry, () => {
+      console.log(`Server running on http://localhost:${portToTry}`);
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`Port ${portToTry} is in use.`);
+        // Only try fallback if the current attempt was for the PREFERRED_PORT
+        if (portToTry === PREFERRED_PORT) {
+          const fallbackPort = PREFERRED_PORT + 1;
+          console.log(`Attempting to start server on fallback port ${fallbackPort}...`);
+          startServer(fallbackPort);
+        } else {
+          // If already tried fallback and it also failed
+          console.error(`Fallback port ${portToTry} is also in use. Please free up a port or specify a different one via the PORT environment variable.`);
+          process.exit(1);
+        }
+      } else {
+        console.error('Failed to start server with an unexpected error:', err);
+        process.exit(1);
+      }
+    });
+  };
+
+  startServer(PREFERRED_PORT);
 }

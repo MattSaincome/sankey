@@ -461,7 +461,7 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
         addLink('Operating Expenses', 'SG&A Expenses', detailedExpenses.sellingGeneralAdmin);
       }
       if (detailedExpenses.sellingAndMarketingExpenses > 0) {
-        addLink('Operating Expenses', 'Marketing Expenses', detailedExpenses.sellingAndMarketingExpenses);
+        addLink('SG&A Expenses', 'Marketing Expenses', detailedExpenses.sellingAndMarketingExpenses);
       }
       
       // Calculate remaining uncategorized expenses
@@ -638,7 +638,7 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
 
     // Dynamic Sankey node sizing for adaptive zoom
     const dynamicNodeWidth = Math.max(30, chartWidth * 0.03);
-    const dynamicNodePadding = Math.max(8, chartHeight * 0.02);
+    const dynamicNodePadding = Math.max(15, chartHeight * 0.03); // Increased min from 8, factor from 0.02
     
     // Create a D3 Sankey diagram with customized settings
     // First flag critical nodes that need special positioning treatment
@@ -691,6 +691,8 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
       links
     };
     let {nodes, links: layoutLinks} = sankey({...sankeyData}); // Changed const to let
+    console.log('[DEBUG SANKEY STAGE 1 - Initial Layout] Nodes:', nodes.map(n => ({ name: n.name, x0: n.x0, y0: n.y0, x1: n.x1, y1: n.y1, value: n.value, depth: n.depth, height: n.height, layer: n.layer })));
+    console.log('[DEBUG SANKEY STAGE 1 - Initial Layout] Links:', layoutLinks.map(l => ({ source: l.source.name, target: l.target.name, value: l.value, width: l.width, y0: l.y0, y1: l.y1, sy: l.sy, ty: l.ty })));
 
     // --- BEGIN CUSTOM DEPTH ADJUSTMENT FOR INTEREST EXPENSE & IBT ---
     const opIncNodeForDepth = nodes.find(n => n.name === 'Operating Income');
@@ -724,7 +726,7 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
       
       // Re-run the layout and reassign to 'nodes' and 'layoutLinks' for subsequent code.
       ({nodes, links: layoutLinks} = sankey(graphForRecalculation));
-      
+
       // Log depths after re-layout to see if they were preserved or re-calculated from topology by sankey()
       const finalOpIncNode = nodes.find(n => n.name === 'Operating Income');
       const finalIbtNode = nodes.find(n => n.name === 'Income Before Taxes');
@@ -1198,41 +1200,41 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
   const MIN_NODE_HEIGHT = 0; // No minimum node height, allow true proportionality
   const chartHeight = nodes.length > 0 ? Math.max(...nodes.map(n => (n.y1 || 0) - (n.y0 || 0))) : 400;
   // Compute the largest node value sum (to set the scale)
-  const maxNodeSum = nodes.length > 0 ? Math.max(...nodes.map(node => {
-    const outgoing = links.filter(l => l.source === node);
-    const incoming = links.filter(l => l.target === node);
-    const outSum = outgoing.reduce((sum, l) => sum + l.value, 0);
-    const inSum = incoming.reduce((sum, l) => sum + l.value, 0);
-    return Math.max(outSum, inSum, node.value || 0);
-  })) : 1;
-  // Use 90% of chart height for flows
-  const usableHeight = chartHeight * 0.9;
-  const pxPerValue = maxNodeSum > 0 ? usableHeight / maxNodeSum : 1;
-  // Assign node heights
-  nodes.forEach(node => {
-    const outgoing = links.filter(l => l.source === node);
-    const incoming = links.filter(l => l.target === node);
-    const outSum = outgoing.reduce((sum, l) => sum + l.value, 0);
-    const inSum = incoming.reduce((sum, l) => sum + l.value, 0);
-    const nodeHeight = Math.max(outSum, inSum, MIN_NODE_HEIGHT);
-    node._trueHeight = nodeHeight * pxPerValue;
-    node.y1 = node.y0 + node._trueHeight;
-  });
+  // const maxNodeSum = nodes.length > 0 ? Math.max(...nodes.map(node => {
+  //   const outgoing = links.filter(l => l.source === node);
+  //   const incoming = links.filter(l => l.target === node);
+  //   const outSum = outgoing.reduce((sum, l) => sum + l.value, 0);
+  //   const inSum = incoming.reduce((sum, l) => sum + l.value, 0);
+  //   return Math.max(outSum, inSum, node.value || 0);
+  // })) : 1;
+  // // Use 90% of chart height for flows
+  // const usableHeight = chartHeight * 0.9;
+  // const pxPerValue = maxNodeSum > 0 ? usableHeight / maxNodeSum : 1;
+  // // Assign node heights
+  // nodes.forEach(node => {
+  //   const outgoing = links.filter(l => l.source === node);
+  //   const incoming = links.filter(l => l.target === node);
+  //   const outSum = outgoing.reduce((sum, l) => sum + l.value, 0);
+  //   const inSum = incoming.reduce((sum, l) => sum + l.value, 0);
+  //   const nodeHeight = Math.max(outSum, inSum, MIN_NODE_HEIGHT);
+  //   node._trueHeight = nodeHeight * pxPerValue;
+  //   node.y1 = node.y0 + node._trueHeight;
+  // });
 
-  // --- ENFORCE MINIMUM VERTICAL MARGIN FOR RIGHTMOST COLUMN ---
-  const MIN_NODE_MARGIN = 18; // px
-  // Find rightmost x0
-  const rightmostX = Math.max(...nodes.map(n => n.x0));
-  const rightNodes = sankeyData.nodes.filter(n => n.x0 === rightmostX).sort((a, b) => a.y0 - b.y0);
-  // Calculate total height with margins
-  let totalHeight = rightNodes.reduce((sum, n) => sum + n._trueHeight, 0) + (rightNodes.length - 1) * MIN_NODE_MARGIN;
-  // If totalHeight > chartHeight, proportionally shrink node heights (except maybe largest)
-  let y = 0;
-  rightNodes.forEach(node => {
-    node.y0 = y;
-    node.y1 = y + node._trueHeight;
-    y = node.y1 + MIN_NODE_MARGIN;
-  });
+  // // --- ENFORCE MINIMUM VERTICAL MARGIN FOR RIGHTMOST COLUMN ---
+  // const MIN_NODE_MARGIN = 18; // px
+  // // Find rightmost x0
+  // const rightmostX = Math.max(...nodes.map(n => n.x0));
+  // const rightNodes = sankeyData.nodes.filter(n => n.x0 === rightmostX).sort((a, b) => a.y0 - b.y0);
+  // // Calculate total height with margins
+  // let totalHeight = rightNodes.reduce((sum, n) => sum + n._trueHeight, 0) + (rightNodes.length - 1) * MIN_NODE_MARGIN;
+  // // If totalHeight > chartHeight, proportionally shrink node heights (except maybe largest)
+  // let y = 0;
+  // rightNodes.forEach(node => {
+  //   node.y0 = y;
+  //   node.y1 = y + node._trueHeight;
+  //   y = node.y1 + MIN_NODE_MARGIN;
+  // });
 
   // Assign link slots using global pxPerValue
   nodes.forEach(node => {
@@ -1256,7 +1258,7 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
     }
     
     outgoing.forEach(link => {
-      let h = link.value * pxPerValue;
+      let h = link.width; // Reverted from Math.max(1, link.width)
       link._sy0 = y;
       link._sy1 = y + h;
       link.y0 = y + h / 2;
@@ -1266,18 +1268,28 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
       }
       y += h;
     });
+    // Diagnostic log for outgoing links
+    const totalOutgoingWidth = outgoing.reduce((sum, l) => sum + (l.width || 0), 0);
+    if (outgoing.length > 0) {
+      console.log(`      [AssignSlots DEBUG] Node: ${node.name} (Outgoing) | Node Height: ${(node.y1 - node.y0).toFixed(2)} | Sum of Link Widths: ${totalOutgoingWidth.toFixed(2)} | Discrepancy: ${((node.y1 - node.y0) - totalOutgoingWidth).toFixed(2)}`);
+    }
   });
   nodes.forEach(node => {
     const incoming = links.filter(l => l.target === node);
     let y = node.y0;
     incoming.sort((a, b) => (a.source.y0 || 0) - (b.source.y0 || 0));
     incoming.forEach(link => {
-      let h = link.value * pxPerValue;
+      let h = link.width; // Reverted from Math.max(1, link.width)
       link._ty0 = y;
       link._ty1 = y + h;
       link.y1 = y + h / 2;
       y += h;
     });
+    // Diagnostic log for incoming links
+    const totalIncomingWidth = incoming.reduce((sum, l) => sum + (l.width || 0), 0);
+    if (incoming.length > 0) {
+      console.log(`      [AssignSlots DEBUG] Node: ${node.name} (Incoming) | Node Height: ${(node.y1 - node.y0).toFixed(2)} | Sum of Link Widths: ${totalIncomingWidth.toFixed(2)} | Discrepancy: ${((node.y1 - node.y0) - totalIncomingWidth).toFixed(2)}`);
+    }
   });
 }
 
@@ -1561,7 +1573,7 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
     console.log('CASCADE_DEBUG_POINT_C: Immediately after custom block, before y-coord check');
     
     // Ensure minimum spacing after Operating Loss and other wave nodes
-    const MIN_SPACING_FROM_WAVE = 40; // Minimum space between wave nodes and expense nodes
+    const MIN_SPACING_FROM_WAVE = 20; // Reduced from 60, was 40. Minimum space between wave nodes and expense nodes
     
     // Find the lowest wave node
     let lowestWaveY = 0;
@@ -1571,7 +1583,7 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
     
     // Adjust all expense nodes below the wave if they're too close
     nodes.forEach(node => {
-      if (isExpenseNode(node) && !node.customAligned && node.y0 < lowestWaveY + MIN_SPACING_FROM_WAVE) {
+      if (node.name !== 'Income Tax Expense' && isExpenseNode(node) && !node.customAligned && node.y0 < lowestWaveY + MIN_SPACING_FROM_WAVE) {
         const shift = (lowestWaveY + MIN_SPACING_FROM_WAVE) - node.y0;
         node.y0 += shift;
         node.y1 += shift;
@@ -1912,12 +1924,14 @@ function updateDownstreamDepthsRecursive(currentNode, currentDepth, allGraphNode
           topEdgeYOffset = -25;
         }
         // --- Universal vertical spacing for right-edge labels ---
-const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
+const LABEL_VERTICAL_SPACING = 16; // px, adjust this for tighter/looser spacing (Increased from 12 by Cascade)
 // Collapsed right-edge labels into one line
         if (rightEdge) {
           const nodeSpecificLabelGroup = labelGroup.append('g')
+            .datum(d) // Explicitly bind data
             .attr('id', `label-group-right-${d.id || d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`)
-            .attr('data-label-set-id', `labelset-right-${d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`);
+            .attr('data-label-set-id', `labelset-right-${d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`)
+            .classed('label-group', true);
           const displayName = d.name.replace(/\s*expenses?$/i, '');
           const midY = (d.y0 + d.y1) / 2;
           const rectHeight = d.y1 - d.y0;
@@ -2173,8 +2187,10 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
         const centerY = (d.y0 + d.y1) / 2;
         const leftLabelTextOffset = 15; // Offset for labels to the left of nodes (e.g., Revenue Segments)
         const nodeSpecificLabelGroup = labelGroup.append('g')
+          .datum(d) // Explicitly bind data
           .attr('id', `label-group-left-${d.id || d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`)
-          .attr('data-label-set-id', `labelset-left-${d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`);
+          .attr('data-label-set-id', `labelset-left-${d.name.replace(/[^a-zA-Z0-9-_]/g, '')}`)
+          .classed('label-group', true);
         // Helper to split a segment name into up to two lines, breaking at spaces or hyphens
         function splitSegmentNameForLines(name) {
           // Prefer breaking at space nearest to middle, or hyphen
@@ -2558,6 +2574,7 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
       }
     });
     // Final re-assign for leftmost column and all nodes
+    sankey.update({nodes, links}); // Recalculate link.width based on final node heights
     assignLinkSlots(nodes, layoutLinks);
 
     // Render all rectangles for connected nodes regardless of size/value
@@ -2567,21 +2584,49 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
       return isConnected && hasName;
     });
 
-    // Render the nodes as rectangles
-    chartGroup.append('g')
-      .selectAll('rect')
-      .data(importantNodes)
-      .join('rect')
-      .attr('x', d => d.x0)
-      .attr('y', d => d.y0) // Use the modified y0 position
-      .attr('width', d => d.x1 - d.x0)
-      .attr('height', d => {
-        // For consistent rendering, we need to round heights to exact pixel values
-        // to match the path rendering (which uses the same coordinates)
-        return Math.floor(Math.max(1, d.y1 - d.y0));
-      })
-      .attr('fill', d => nodeColor(d.name));
-    
+    const t = chartGroup.transition().duration(250);
+    // Render the nodes as groups
+    const node = chartGroup.selectAll('g.node')
+      .data(importantNodes, d => d.id) // Use importantNodes and a key function (d.id was set from d.name)
+      .join(
+        enter => {
+          const g = enter.append('g')
+            .attr('class', 'node') // Add class="node"
+            .attr('id', d => `node-${(d.id || 'unknown-node-' + Math.random().toString(36).substr(2, 9)).replace(/\s+/g, '-')}`) // Use unique ID from d.id
+            .attr('transform', d => `translate(${d.x0},${d.y0})`);
+
+          g.append('rect')
+            .attr('height', d => {
+                const h = d.y1 - d.y0;
+                return h > 0 ? h : 0.1; // Ensure non-negative height
+            })
+            .attr('width', d => d.x1 - d.x0) // Using d.x1 - d.x0 as per existing logic for potentially variable widths
+            .attr('fill', d => nodeColor(d.name)) // Use existing nodeColor logic
+            .attr('stroke', '#333')
+            .attr('stroke-width', 0.5);
+
+          // Add title for basic tooltip (can be enhanced by later tooltip logic)
+          g.append('title')
+            .text(d => `${d.name}\nValue: ${formatDollars(d.value)}`);
+
+          return g;
+        },
+        update => update
+          .call(upd => upd.transition(t) // Apply transition 't' if defined
+            .attr('transform', d => `translate(${d.x0},${d.y0})`)
+            .select('rect')
+              .attr('height', d => {
+                  const h = d.y1 - d.y0;
+                  return h > 0 ? h : 0.1;
+              })
+              .attr('width', d => d.x1 - d.x0)) // Update width if it can change
+          ,
+        exit => exit
+          .call(ex => ex.transition(t) // Apply transition 't' if defined
+            .style('opacity', 0) // Fade out
+            .remove())
+      );
+
     // Draw links
     chartGroup.selectAll('path.sankey-link')
       .data(layoutLinks)
@@ -2727,15 +2772,16 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
 
     // Helper to get the BBox of a label group <g> element in SVG coordinates,
     // considering its 'transform' attribute.
-    function getLabelGroupSVGScreenBBox(groupElement) {
+    function getElementSVGScreenBBox(groupElement) {
       if (!groupElement || typeof groupElement.getBBox !== 'function') {
-        console.warn('[Collision DEBUG] Invalid groupElement to getLabelGroupSVGScreenBBox:', groupElement);
+        console.warn('[Collision DEBUG] Invalid groupElement to getElementSVGScreenBBox:', groupElement);
         return { x: 0, y: 0, width: 0, height: 0, top: 0, right: 0, bottom: 0, left: 0, midY: 0 };
       }
       const bbox = groupElement.getBBox(); // BBox in parent's coords, before this element's transform
+      const VISUAL_PADDING = 6; // Full max stroke-width (e.g., 6px) used on labels, provides buffer on each side.
 
       const transform = d3.select(groupElement).attr('transform');
-      let currentTranslateX = 0; 
+      let currentTranslateX = 0;
       let currentTranslateY = 0;
       if (transform) {
         const R = /translate\(\s*([0-9.-]+)\s*,\s*([0-9.-]+)\s*\)/;
@@ -2745,57 +2791,67 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
           currentTranslateY = parseFloat(match[2]);
         }
       }
-      
+
+      const abs_x_unbuffered = bbox.x + currentTranslateX;
+      const abs_y_unbuffered = bbox.y + currentTranslateY;
+
+      const final_x = abs_x_unbuffered - VISUAL_PADDING;
+      const final_y = abs_y_unbuffered - VISUAL_PADDING;
+      const final_width = bbox.width + 2 * VISUAL_PADDING;
+      const final_height = bbox.height + 2 * VISUAL_PADDING;
+
       return {
-        x: bbox.x + currentTranslateX,
-        y: bbox.y + currentTranslateY,
-        width: bbox.width,
-        height: bbox.height,
-        top: bbox.y + currentTranslateY,
-        right: bbox.x + currentTranslateX + bbox.width,
-        bottom: bbox.y + currentTranslateY + bbox.height,
-        left: bbox.x + currentTranslateX,
-        midY: (bbox.y + currentTranslateY) + (bbox.height / 2)
+        x: final_x,
+        y: final_y,
+        width: final_width,
+        height: final_height,
+        top: final_y,
+        right: final_x + final_width,
+        bottom: final_y + final_height,
+        left: final_x,
+        midY: final_y + final_height / 2
       };
     }
 
     // --- Function to adjust Text vs (Rect/Path) Collisions with Grouped Movement ---
     function adjustNodeTextRectCollisions(layoutNodes, padding = 2) {
+    console.log('[Collision Detection] adjustNodeTextRectCollisions CALLED');
+    let overallAdjustmentsMadeThisFunction = false;
     const getBBoxString = (bbox) => `x:${bbox.x.toFixed(1)},y:${bbox.y.toFixed(1)},w:${bbox.width.toFixed(1)},h:${bbox.height.toFixed(1)}`;
 
-  function getTranslateValues(transformString) {
-    if (!transformString) return { translateX: 0, translateY: 0 };
-    const match = /translate\(\s*([0-9.-]+)(?:\s*[, ]\s*([0-9.-]+))?\s*\)/.exec(transformString);
-    if (match) {
-      const x = parseFloat(match[1]);
-      const y = match[2] !== undefined ? parseFloat(match[2]) : 0;
-      return { translateX: x, translateY: y };
-    }
-    return { translateX: 0, translateY: 0 };
-  }
+      function getTranslateValues(transformString) {
+        if (!transformString) return { translateX: 0, translateY: 0 };
+        const match = /translate\(\s*([0-9.-]+)(?:\s*[, ]\s*([0-9.-]+))?\s*\)/.exec(transformString);
+        if (match) {
+          const x = parseFloat(match[1]);
+          const y = match[2] !== undefined ? parseFloat(match[2]) : 0;
+          return { translateX: x, translateY: y };
+        }
+        return { translateX: 0, translateY: 0 };
+      }
       console.log('[Collision DEBUG] Starting NEW Text vs (Rect/Path) collision adjustment...');
-  const nodeRects = chartGroup.selectAll('g > rect').nodes().map(r => ({ el: r, type: 'rect', bbox: r.getBBox() }));
+      const nodeRects = chartGroup.selectAll('g.node rect').nodes().map(rect => ({ type: 'rect', el: rect, bbox: getElementSVGScreenBBox(rect) }));
+      console.log(`[Collision Detection] Found ${nodeRects.length} rect obstacles`);
 
-  // Get Sankey layout data for smarter collision decisions
-  const allSankeyNodes = layoutNodes; // Use passed-in nodes
-  const maxDepth = d3.max(allSankeyNodes, d => d.depth);
-  const sankeyNodeMap = new Map(allSankeyNodes.map(n => [n.name, n])); // Assuming 'data-label-set-id' uses node.name
+      const allSankeyNodes = layoutNodes;
+      const sankeyNodeMap = new Map(allSankeyNodes.map(n => [n.name, n]));
 
-  const linkPathElements = chartGroup.selectAll('path.sankey-link');
-  const linkPaths = linkPathElements.data().map((linkDataItem, i) => {
-    const pathElement = linkPathElements.nodes()[i];
-    if (!pathElement) return null;
-    const bbox = pathElement.getBBox();
-    if (bbox.width <= 1 || bbox.height <= 1) return null;
-    return { el: pathElement, type: 'path', bbox: bbox, data: linkDataItem }; // Store original link data
-  }).filter(p => p !== null);
+      const linkPathElements = chartGroup.selectAll('path.sankey-link');
+      const linkPaths = linkPathElements.data().map((linkDataItem, i) => {
+        const pathElement = linkPathElements.nodes()[i];
+        if (!pathElement) return null;
+        const bbox = getElementSVGScreenBBox(pathElement);
+        if (bbox.width <= 1 || bbox.height <= 1) return null;
+        return { el: pathElement, type: 'path', bbox: bbox, data: linkDataItem };
+      }).filter(p => p !== null);
 
       const allLabelGroupElements = labelGroup.selectAll('g[data-label-set-id]').nodes();
+      console.log(`[Collision Detection] Found ${allLabelGroupElements.length} label groups to check`);
       console.log(`[Collision DEBUG] Found ${allLabelGroupElements.length} label groups to process.`);
 
       if (allLabelGroupElements.length === 0) {
         console.log('[Collision DEBUG] No label groups found to adjust.');
-        return;
+        return false; // Return false as no adjustments can be made
       }
 
       allLabelGroupElements.forEach(gEl => {
@@ -2803,8 +2859,8 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
         if (currentTransform) {
           const match = /translate\(\s*([0-9.-]+)\s*,\s*([0-9.-]+)\s*\)/.exec(currentTransform);
           if (match) {
-            const currentX = parseFloat(match[1]); // Preserve current X
-            const currentY = parseFloat(match[2]); // Preserve current Y
+            const currentX = parseFloat(match[1]);
+            const currentY = parseFloat(match[2]);
             d3.select(gEl).attr('transform', `translate(${currentX}, ${currentY})`);
           } else {
             d3.select(gEl).attr('transform', 'translate(0,0)');
@@ -2814,9 +2870,11 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
         }
       });
 
-      const MAX_GLOBAL_ITERATIONS = 75;
-      const ADJUSTMENT_AMOUNT = 4;
-      let globalIterationCount = 0;
+      const MAX_GLOBAL_ITERATIONS = 200; // Increased by Cascade from 75
+  const ADJUSTMENT_AMOUNT = 15; // Increased from 12. Step size for collision adjustment.
+  const MIN_LABEL_SEPARATION = 20; // Increased from 15. Target minimum vertical separation.
+  const MIN_SEPARATION_FROM_OWN_NODE_RECT = 20; // Min separation between a label and its own node rectangle edge.
+  let globalIterationCount = 0;
       let adjustmentsMadeInLastPass = true;
 
       while (adjustmentsMadeInLastPass && globalIterationCount < MAX_GLOBAL_ITERATIONS) {
@@ -2826,25 +2884,18 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
 
         const currentCycleLabelBBoxes = new Map();
         allLabelGroupElements.forEach(gEl => {
-          currentCycleLabelBBoxes.set(gEl, getLabelGroupSVGScreenBBox(gEl));
+          currentCycleLabelBBoxes.set(gEl, getElementSVGScreenBBox(gEl));
         });
 
         for (let i = 0; i < allLabelGroupElements.length; i++) {
           const groupA_element = allLabelGroupElements[i];
           const groupA_id = d3.select(groupA_element).attr('data-label-set-id') || `group-${i}`;
           
-          let groupA_workingBBox = getLabelGroupSVGScreenBBox(groupA_element);
-
-      // NEW LOGGING: Initial position of the label group
-      const initialGroupTransform_A = d3.select(groupA_element).attr('transform');
-      const initialTranslate_A = getTranslateValues(initialGroupTransform_A);
-      const groupA_nodeName_for_log = sankeyNodeMap.get(groupA_id) ? sankeyNodeMap.get(groupA_id).name : groupA_id;
-      console.log(`[Collision DEBUG] Processing Label Group for "${groupA_nodeName_for_log}". Initial Y: ${initialTranslate_A.translateY.toFixed(1)}, Initial X: ${initialTranslate_A.translateX.toFixed(1)}, BBox: ${getBBoxString(groupA_workingBBox)}`);
+          let groupA_workingBBox = getElementSVGScreenBBox(groupA_element); // Recalculate for current state
 
           const transformAttrA = d3.select(groupA_element).attr('transform');
-          let currentTranslateX_A = 0; // To store current X
+          let currentTranslateX_A = 0;
           let currentTranslateY_A = 0;
-          // Regex now captures both X and Y, X can be non-zero
           const matchA = /translate\(\s*([0-9.-]+)\s*,\s*([0-9.-]+)\s*\)/.exec(transformAttrA);
           if (matchA) {
             currentTranslateX_A = parseFloat(matchA[1]);
@@ -2854,113 +2905,157 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
           const initialY_A_for_turn = currentTranslateY_A;
           let newTargetY_A = currentTranslateY_A;
 
-          for (const obstacle of [...nodeRects, ...linkPaths]) {
-        let skipCollisionForThisObstacle = false;
-        const groupA_nodeId = d3.select(groupA_element).attr('data-label-set-id');
-        const groupA_sankeyNode = sankeyNodeMap.get(groupA_nodeId);
+          // Attempt to get the Sankey node data associated with groupA_element
+          let groupA_sankeyNode; // This will be groupA_nodeData for the logger
+          const groupA_id_full = d3.select(groupA_element).attr('data-label-set-id');
+          if (groupA_id_full) {
+            groupA_sankeyNode = sankeyNodeMap.get(groupA_id_full) || allSankeyNodes.find(n => n.name === groupA_id_full || (n.id && n.id.toString() === groupA_id_full));
+             // Fallback for more complex ID matching if needed (e.g. from previous logs)
+            if (!groupA_sankeyNode) {
+                let stripped_id_for_lookup;
+                if (groupA_id_full.startsWith('labelset-general-')) stripped_id_for_lookup = groupA_id_full.substring('labelset-general-'.length);
+                else if (groupA_id_full.startsWith('labelset-segment-')) stripped_id_for_lookup = groupA_id_full.substring('labelset-segment-'.length);
+                else stripped_id_for_lookup = groupA_id_full;
 
-        if (groupA_sankeyNode && obstacle.type === 'path' && obstacle.data) {
-          // Check if groupA is a right-edge node
-          if (groupA_sankeyNode.depth === maxDepth) {
-        console.log(`[Collision DEBUG] Node "${groupA_sankeyNode.name}" (ID: ${groupA_id}) IS a right-edge node (depth ${groupA_sankeyNode.depth}, maxDepth ${maxDepth}).`);
-            // console.log(`[Collision DEBUG] Right-edge label "${groupA_nodeId}" (depth ${groupA_sankeyNode.depth}) vs path target "${obstacle.data.target.name}". Max depth: ${maxDepth}`);
-            // If it's a right-edge node and the obstacle is a path, check if it's its own incoming link
-            if (obstacle.data.target === groupA_sankeyNode) {
-          const textElementsForLog = d3.select(groupA_element).selectAll('text').nodes();
-          const firstTextContent = textElementsForLog.length > 0 ? d3.select(textElementsForLog[0]).text().substring(0,20)+'...' : 'N/A';
-          console.log(`[Collision DEBUG] Right-edge node "${groupA_sankeyNode.name}" (text: "${firstTextContent}") potential collision with OWN INCOMING path: ${obstacle.data.source.name} -> ${obstacle.data.target.name}. ` +
-                                    `TextGroupBBox: ${getBBoxString(groupA_workingBBox)}, PathBBox: ${getBBoxString(obstacle.bbox)}`);
-              skipCollisionForThisObstacle = true;
-              const textElementsForSkipLog = d3.select(groupA_element).selectAll('text').nodes();
-          const firstTextContentForSkip = textElementsForSkipLog.length > 0 ? d3.select(textElementsForSkipLog[0]).text().substring(0,20)+'...' : 'N/A';
-          console.log(`[Collision DEBUG] SKIPPING collision for right-edge label "${groupA_sankeyNode.name}" (text: "${firstTextContentForSkip}") with its OWN incoming link (Target: "${obstacle.data.target.name}")`);
-            } else {
-              // console.log(`[Collision DEBUG] NOT skipping for "${groupA_nodeId}": path target "${obstacle.data.target.name}" is NOT this node.`);
+                if (stripped_id_for_lookup) {
+                    groupA_sankeyNode = allSankeyNodes.find(n => n.name && (n.name.replace(/\s*&\s*/g, '').replace(/\s+/g, '') === stripped_id_for_lookup || n.name.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '') === stripped_id_for_lookup));
+                }
             }
-          } else {
-            // console.log(`[Collision DEBUG] Label "${groupA_nodeId}" (depth ${groupA_sankeyNode.depth}) is NOT right-edge (maxDepth ${maxDepth}). No special link skipping.`);
           }
-        } else if (groupA_sankeyNode && obstacle.type === 'path' && !obstacle.data) {
-          // console.warn(`[Collision DEBUG] Obstacle path for label "${groupA_nodeId}" is missing .data property.`);
-        } else if (!groupA_sankeyNode && obstacle.type === 'path'){
-          // console.warn(`[Collision DEBUG] groupA_sankeyNode not found for ID "${groupA_nodeId}" when checking path obstacle.`);
-        }
+          const groupA_nodeData = groupA_sankeyNode; // Use this for the specific logger
 
-        if (!skipCollisionForThisObstacle && checkOverlap(groupA_workingBBox, obstacle.bbox, 0)) { // Use 0 for direct overlap check
-            const textElementsForCollisionLog = d3.select(groupA_element).selectAll('text').nodes();
-            const firstTextContentForCollision = textElementsForCollisionLog.length > 0 ? d3.select(textElementsForCollisionLog[0]).text().substring(0,20)+'...' : 'N/A';
-            const obstacleNodeName = obstacle.type === 'rect' ? (obstacle.el.__data__ ? obstacle.el.__data__.name : 'UnknownRect') : 'N/A';
-            const obstacleSourceNodeName = obstacle.type === 'path' && obstacle.data && obstacle.data.source ? obstacle.data.source.name : 'N/A';
-            const obstacleTargetNodeName = obstacle.type === 'path' && obstacle.data && obstacle.data.target ? obstacle.data.target.name : 'N/A';
+          // Iterate over potential obstacles: node rectangles and link paths
+          for (const obstacle of [...nodeRects, ...linkPaths]) {
+            // Pre-check debug for 'Cost of Revenue' label against its potential own rectangle
+            if (groupA_nodeData && groupA_nodeData.name === "Cost of Revenue" && obstacle.type === 'rect' && obstacle.data) {
+              console.log(`%c[PRE-CHECK DEBUG CoR] Label: ${groupA_nodeData.name}, Obstacle Type: ${obstacle.type}, Obstacle.data.id: ${obstacle.data.id}, Obstacle.data.name: ${obstacle.data.name}, Label.id: ${groupA_nodeData.id}`, "color: orange; font-weight: bold;");
+            }
 
-            console.log(`[Collision DEBUG] COLLISION! Label Group for "${groupA_sankeyNode ? groupA_sankeyNode.name : groupA_id}" (text: "${firstTextContentForCollision}") ` +
-                                    `TextGroupBBox: ${getBBoxString(groupA_workingBBox)} ` +
-                                    `colliding with ${obstacle.type} of "${obstacle.type === 'rect' ? obstacleNodeName : `${obstacleSourceNodeName} -> ${obstacleTargetNodeName}`}" (ObstacleBBox: ${getBBoxString(obstacle.bbox)}).`);
+            const isOwnNodeRectangle = (groupA_nodeData && obstacle.type === 'rect' && obstacle.data && obstacle.data.id === groupA_nodeData.id);
+            const effectiveSeparation = isOwnNodeRectangle ? MIN_SEPARATION_FROM_OWN_NODE_RECT : MIN_LABEL_SEPARATION;
 
-              // --- BEGIN CUSTOM LOGIC for Interest Expense vs OpEx->Marketing Path ---
-              let collisionResolvedByNodeMove = false;
-              const isInterestExpenseText = groupA_sankeyNode && groupA_sankeyNode.name === 'Interest Expense';
-              const isOpExToMarketingPath = obstacle.type === 'path' && obstacle.data &&
-                                            obstacle.data.source.name === 'Operating Expenses' &&
-                                            obstacle.data.target.name === 'Marketing Expenses';
+            // Skip collision check between a right-aligned label and its own incoming link path
+            // This prevents the label from being pushed away from where it should be.
+            if (obstacle.type === 'path' && groupA_nodeData && groupA_nodeData.depth === maxDepth && 
+                obstacle.data && obstacle.data.target === groupA_nodeData) {
+                continue; // Skip this specific path obstacle for this label
+            }
 
-              if (isInterestExpenseText && isOpExToMarketingPath) {
-                const marketingNodeData = sankeyNodeMap.get('Marketing Expenses');
-                if (marketingNodeData && !marketingNodeData.lockedByIECollision) {
-                  console.log(`[Custom Collision RULE] Moving 'Marketing Expenses' node (${marketingNodeData.name}) due to 'Interest Expense' text collision with 'OpEx -> Marketing' path.`);
-                  const moveAmount = 15; // Pixels to move the node down
-                  marketingNodeData.y0 += moveAmount;
-                  marketingNodeData.y1 += moveAmount;
-                  marketingNodeData.lockedByIECollision = true; // Lock for *this current* call to adjustNodeTextRectCollisions
-                  marketingNodeData.lockedByIECollision_flag_for_dom_update = true; // Signal that this node's DOM needs update
-                  window.markSankeyNeedsNodeUpdate = true;    // Signal main render loop to update DOM and re-run collisions
-                  console.log(`[Custom Collision RULE] 'Marketing Expenses' new y0: ${marketingNodeData.y0.toFixed(1)}, y1: ${marketingNodeData.y1.toFixed(1)}`);
-                  adjustmentsMadeInLastPass = true; // A change was made that might affect other elements
-                  collisionResolvedByNodeMove = true;   // This specific collision is handled by node move
-                } else if (marketingNodeData && marketingNodeData.lockedByIECollision) {
-                  console.log(`[Custom Collision RULE] 'Marketing Expenses' node already moved this pass for this rule. Default text push for this specific path still suppressed.`);
-                  collisionResolvedByNodeMove = true; // Still suppress default text push for this specific path collision
-                } else if (!marketingNodeData) {
-                  console.warn("[Custom Collision RULE] Could not find 'Marketing Expenses' node data to move.");
+            let obstacleNameForDebug = 'UnknownObstacle';
+            if (obstacle.type === 'rect' && obstacle.el && obstacle.el.__data__) {
+                obstacleNameForDebug = obstacle.el.__data__.name || 'UnnamedRect';
+            } else if (obstacle.type === 'path' && obstacle.data && obstacle.data.source && obstacle.data.target) {
+                obstacleNameForDebug = `${obstacle.data.source.name}->${obstacle.data.target.name}`;
+            }
+
+            // Log details if this is a label vs its own node rectangle
+            if (isOwnNodeRectangle && groupA_nodeData && groupA_nodeData.name) {
+              console.log(`%c[OWN_RECT_CHECK] Label: ${groupA_nodeData.name}, LabelBBox: {x: ${groupA_workingBBox.x.toFixed(1)}, y: ${groupA_workingBBox.y.toFixed(1)}, w: ${groupA_workingBBox.width.toFixed(1)}, h: ${groupA_workingBBox.height.toFixed(1)}}, ObstacleBBox: {x: ${obstacle.bbox.x.toFixed(1)}, y: ${obstacle.bbox.y.toFixed(1)}, w: ${obstacle.bbox.width.toFixed(1)}, h: ${obstacle.bbox.height.toFixed(1)}}, Sep: ${effectiveSeparation.toFixed(1)}`, "color: blue; font-style: italic;");
+            }
+
+            // Perform the collision check
+            if (checkCollision(groupA_workingBBox, obstacle.bbox, effectiveSeparation)) {
+              let shift; // This will be our calculated dy
+              const specificNodeNamesForDebugLog = ["Income Tax Expense", "SG&A Expenses", "Marketing Expenses", "Cost of Revenue"]; // Moved up for use in OWN_RECT_SHIFT_CALC
+
+              if (isOwnNodeRectangle) {
+                // Specialized logic for own-node-rectangle collision
+                const labelMidY = groupA_workingBBox.y + groupA_workingBBox.height / 2;
+                const nodeMidY = obstacle.bbox.y + obstacle.bbox.height / 2;
+
+                // Added by Cascade: Detailed input logging for own-rect shift calculation
+                if (groupA_nodeData && specificNodeNamesForDebugLog.includes(groupA_nodeData.name)) {
+                    console.log(`%c[OWN_RECT_CALC_INPUTS for ${groupA_nodeData.name}] LabelY: ${groupA_workingBBox.y.toFixed(3)}, LabelH: ${groupA_workingBBox.height.toFixed(3)}, NodeY: ${obstacle.bbox.y.toFixed(3)}, NodeH: ${obstacle.bbox.height.toFixed(3)}, MIN_SEP_OWN_RECT: ${MIN_SEPARATION_FROM_OWN_NODE_RECT.toFixed(3)}`, "color: magenta; font-weight: bold;");
+                }
+
+                if (labelMidY <= nodeMidY) { // Try to push label UP
+                  // Target: label's bottom edge should be MIN_SEPARATION_FROM_OWN_NODE_RECT above node's top edge
+                  const targetLabelBottom = obstacle.bbox.y - MIN_SEPARATION_FROM_OWN_NODE_RECT;
+                  shift = targetLabelBottom - (groupA_workingBBox.y + groupA_workingBBox.height);
+                } else { // Try to push label DOWN
+                  // Target: label's top edge should be MIN_SEPARATION_FROM_OWN_NODE_RECT below node's bottom edge
+                  const targetLabelTop = obstacle.bbox.y + obstacle.bbox.height + MIN_SEPARATION_FROM_OWN_NODE_RECT;
+                  shift = targetLabelTop - groupA_workingBBox.y;
+                }
+                // Add a specific log for this calculated shift
+                if (groupA_nodeData && groupA_nodeData.name && specificNodeNamesForDebugLog.includes(groupA_nodeData.name)) {
+                    console.log(`%c[OWN_RECT_SHIFT_CALC] Label: ${groupA_nodeData.name}, Calculated Own-Rect Shift: ${shift.toFixed(1)} (to move completely outside its node)`, "color: purple; font-weight: bold;");
+                }
+
+              } else {
+                // Generic collision logic (existing)
+                if (groupA_workingBBox.midY >= (obstacle.bbox.y + obstacle.bbox.height / 2)) {
+                  shift = ADJUSTMENT_AMOUNT; // Push A down
+                } else {
+                  shift = -ADJUSTMENT_AMOUNT; // Push A up
                 }
               }
-              // --- END CUSTOM LOGIC ---
-
-              if (!collisionResolvedByNodeMove) {
-                // Default behavior: push the text down if not handled by custom node move
-                newTargetY_A += ADJUSTMENT_AMOUNT;
-              } else {
-                // If resolved by node move, we still count it as an adjustment for the outer loop's sake,
-                // but the text itself (groupA_workingBBox) isn't immediately shifted here by the default rule.
-                // The node move will change the landscape, and subsequent collision checks will handle remaining issues.
-              }
-
+              
+              newTargetY_A += shift;
               adjustmentsMadeInLastPass = true;
-              groupA_workingBBox.y += ADJUSTMENT_AMOUNT;
-              groupA_workingBBox.top += ADJUSTMENT_AMOUNT;
-              groupA_workingBBox.bottom += ADJUSTMENT_AMOUNT;
-              groupA_workingBBox.midY += ADJUSTMENT_AMOUNT;
-          }
-            }
+              groupA_workingBBox.y += shift; // Update working BBox for subsequent checks in this iteration
+              groupA_workingBBox.midY = groupA_workingBBox.y + groupA_workingBBox.height / 2;
 
+              // Debug logging for specific nodes (this will now log the correct shift)
+              if (groupA_nodeData && groupA_nodeData.name && specificNodeNamesForDebugLog.includes(groupA_nodeData.name)) {
+                  console.log(`%c[COLLISION SHIFT] Shifted ${groupA_nodeData.name} by ${shift.toFixed(1)}px due to ${obstacleNameForDebug} (type: ${obstacle.type}, ownRect: ${isOwnNodeRectangle}, effectiveSep: ${effectiveSeparation.toFixed(1)})`, "color: orange; font-weight: bold;");
+              }
+            }
+          }
+
+          // Iterate over other label groups for label-vs-label collision
           for (let j = 0; j < allLabelGroupElements.length; j++) {
             if (i === j) continue;
             const groupB_element = allLabelGroupElements[j];
-            const groupB_snapshotBBox = currentCycleLabelBBoxes.get(groupB_element);
-            if (checkOverlap(groupA_workingBBox, groupB_snapshotBBox, padding)) {
+            const groupB_snapshotBBox = currentCycleLabelBBoxes.get(groupB_element); // Use snapshot from start of global iteration
+
+            if (checkOverlap(groupA_workingBBox, groupB_snapshotBBox, MIN_LABEL_SEPARATION)) {
+              // If A's middle is at or below B's middle, push A down. Otherwise, push A up.
+              let shift;
               if (groupA_workingBBox.midY >= groupB_snapshotBBox.midY - 1e-3) { 
-                newTargetY_A += ADJUSTMENT_AMOUNT;
-                adjustmentsMadeInLastPass = true;
-                groupA_workingBBox.y += ADJUSTMENT_AMOUNT;
-                groupA_workingBBox.top += ADJUSTMENT_AMOUNT;
-                groupA_workingBBox.bottom += ADJUSTMENT_AMOUNT;
-                groupA_workingBBox.midY += ADJUSTMENT_AMOUNT;
+                shift = ADJUSTMENT_AMOUNT;
+              } else {
+                shift = -ADJUSTMENT_AMOUNT;
               }
+              newTargetY_A += shift;
+              adjustmentsMadeInLastPass = true;
+              groupA_workingBBox.y += shift; // Update working BBox
+              groupA_workingBBox.midY = groupA_workingBBox.y + groupA_workingBBox.height / 2; // Recalculate midY
+
+              // **** CASCADE: SPECIFIC LOGGING FOR SHIFT APPLIED (Label vs Label) ****
+              const groupB_sankeyNode_id = d3.select(groupB_element).attr('data-label-set-id');
+              let groupB_nodeData_for_log; // Similar lookup as groupA_nodeData if needed for specific logging
+              if(groupB_sankeyNode_id) groupB_nodeData_for_log = sankeyNodeMap.get(groupB_sankeyNode_id) || allSankeyNodes.find(n => n.name === groupB_sankeyNode_id);
+
+              if (groupA_nodeData && groupA_nodeData.name && specificNodeNamesForDebug.includes(groupA_nodeData.name) && 
+                  groupB_nodeData_for_log && groupB_nodeData_for_log.name && specificNodeNamesForDebug.includes(groupB_nodeData_for_log.name) &&
+                  groupA_nodeData.name !== groupB_nodeData_for_log.name) {
+                  console.log(`%c[SPECIFIC SHIFT APPLIED (Label)] Shifted ${groupA_nodeData.name} target Y to: ${newTargetY_A.toFixed(1)} (was ${currentTranslateY_A.toFixed(1)}) due to label ${groupB_nodeData_for_log.name}`, "color: #32CD32; font-weight: bold;");
+              }
+              // **** CASCADE: END OF SPECIFIC LOGGING FOR SHIFT APPLIED (Label vs Label) ****
             }
           }
-          
+
           if (newTargetY_A !== initialY_A_for_turn) {
             d3.select(groupA_element).attr('transform', `translate(${currentTranslateX_A}, ${newTargetY_A})`);
+
+                // **** CASCADE: ADDED SPECIFIC LOGGING FOR SHIFT APPLIED ****
+                const specificNodeNamesForShiftDebug = ["Income Tax Expense", "SG&A Expenses"];
+                if (specificNodeNamesForShiftDebug.includes(groupA_nodeData.name) && specificNodeNamesForShiftDebug.includes(obstacle.name) && groupA_nodeData.name !== obstacle.name) {
+                    console.log(`%c[SPECIFIC SHIFT APPLIED] Shifted ${groupA_nodeData.name} to new Y transform: ${newTargetY_A.toFixed(1)} (was ${currentTranslateY_A.toFixed(1)}) due to ${obstacle.name}`, "color: green; font-weight: bold;");
+                }
+                // **** CASCADE: END OF SPECIFIC LOGGING FOR SHIFT APPLIED ****
+            
+            // Added by Cascade: Store the vertical shift on the Sankey node data
+            if (groupA_sankeyNode) {
+              const dy_label_shift = newTargetY_A - initialY_A_for_turn;
+              // Accumulate shifts if label is pushed multiple times by different obstacles/texts in this one call to adjustNodeTextRectCollisions
+              groupA_sankeyNode.cascade_label_dy_shift = (groupA_sankeyNode.cascade_label_dy_shift || 0) + dy_label_shift;
+              console.log(`[Cascade Label Shift] Stored dy_label_shift: ${dy_label_shift.toFixed(1)} on node "${groupA_sankeyNode.name}". Total pending shift for this node in this pass: ${(groupA_sankeyNode.cascade_label_dy_shift || 0).toFixed(1)}`);
+            }
+            // End Cascade Addition
+
+            overallAdjustmentsMadeThisFunction = true; // A label was moved
           }
         }
       }
@@ -2970,7 +3065,95 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
       } else {
         console.log(`[Collision DEBUG] Collision adjustment completed in ${globalIterationCount} global iterations.`);
       }
+      console.log(`[Collision Detection] Function complete. Adjustments made: ${overallAdjustmentsMadeThisFunction}`); // Added by Cascade for Edit 6
+      return overallAdjustmentsMadeThisFunction; // Added by Cascade
     }
+
+    // Added by Cascade: Function to adjust node positions based on their label's shifts
+    function adjustNodePositionsBasedOnLabelShifts(layoutNodes) {
+      let nodesAdjusted = false;
+      console.log('[Cascade Node Shift] Running adjustNodePositionsBasedOnLabelShifts...');
+
+      layoutNodes.forEach(node => {
+        // Ensure the property exists, defaulting to 0 if not (e.g., first pass or if never set)
+        if (typeof node.cascade_label_dy_shift === 'undefined') {
+            node.cascade_label_dy_shift = 0;
+        }
+
+        if (node.cascade_label_dy_shift !== 0) {
+          const shiftAmount = node.cascade_label_dy_shift;
+          console.log(`[Cascade Node Shift] Applying shift of ${shiftAmount.toFixed(1)} to node "${node.name}" (current y0: ${node.y0.toFixed(1)})`);
+          
+          node.y0 += shiftAmount;
+          node.y1 += shiftAmount;
+          
+          console.log(`[Cascade Node Shift] Node "${node.name}" new y0: ${node.y0.toFixed(1)}, y1: ${node.y1.toFixed(1)}`);
+          
+          node.cascade_label_dy_shift = 0; // Reset the shift after applying
+          nodesAdjusted = true;
+        }
+      });
+
+      if (nodesAdjusted) {
+        console.log('[Cascade Node Shift] adjustNodePositionsBasedOnLabelShifts: Nodes were adjusted.');
+      } else {
+        console.log('[Cascade Node Shift] adjustNodePositionsBasedOnLabelShifts: No nodes needed adjustment from label shifts.');
+      }
+      return nodesAdjusted;
+    }
+    // End Cascade Addition
+
+    // --- BEGIN MOVED MANUAL NODE ADJUSTMENTS ---
+    // ADD VERTICAL OFFSETS TO CREATE NATURAL WAVES
+    // This ensures the Sankey diagram has beautiful flowing curves instead of straight lines
+    nodes.forEach(node => {
+      let offsetY = 0;
+      
+      if (node.name === 'Gross Profit' && !isProfitable) {
+        offsetY = 10; 
+      } else if (node.name === 'SG&A Expenses' || node.name === 'SG&A') {
+        offsetY = 35; 
+      } else if (node.name === 'Cost of Revenue') {
+        offsetY = -8; 
+      } else if (node.name === 'Operating Loss') {
+        offsetY = 0;
+      } else if (node.name === 'Income Before Taxes') {
+        offsetY = 5;
+      }
+      
+      if (offsetY !== 0) {
+        node.y0 += offsetY;
+        node.y1 += offsetY;
+        console.log(`[Wave Offset Early] ${node.name}: offset=${offsetY}, new y0=${node.y0}, y1=${node.y1}`);
+      }
+    });
+      
+    // Custom alignment for Interest Expense node position (X and Y)
+    // Ensure 'nodes' array is the one used by the Sankey layout.
+    // 'operatingIncomeNode' might need to be re-fetched if used here and was defined much earlier.
+    // For now, focusing on 'Income Before Taxes' and 'Interest Expense'.
+    console.log('!!! (Early) CUSTOM INTEREST EXPENSE ALIGNMENT BLOCK !!!'); 
+    const incomeBeforeTaxesNodeForAlignment = nodes.find(n => n.name === 'Income Before Taxes');
+    const interestExpenseNodeForAlignment = nodes.find(n => n.name === 'Interest' || n.name === 'Interest Expense');
+
+    if (incomeBeforeTaxesNodeForAlignment && interestExpenseNodeForAlignment) {
+        console.log(`[Custom Alignment Early DEBUG] Both nodes found. Proceeding with alignment.`);
+        const paddingForAlignment = 10; 
+        const originalInterestExpenseHeightForAlignment = interestExpenseNodeForAlignment.y1 - interestExpenseNodeForAlignment.y0;
+
+        interestExpenseNodeForAlignment.x0 = incomeBeforeTaxesNodeForAlignment.x0;
+        interestExpenseNodeForAlignment.x1 = incomeBeforeTaxesNodeForAlignment.x1;
+        interestExpenseNodeForAlignment.y0 = incomeBeforeTaxesNodeForAlignment.y1 + paddingForAlignment;
+        interestExpenseNodeForAlignment.y1 = interestExpenseNodeForAlignment.y0 + originalInterestExpenseHeightForAlignment;
+
+        console.log(`[Custom Alignment Early DEBUG] Adjusted 'Interest Expense' node: x0=${interestExpenseNodeForAlignment.x0}, y0=${interestExpenseNodeForAlignment.y0}, x1=${interestExpenseNodeForAlignment.x1}, y1=${interestExpenseNodeForAlignment.y1}`);
+    } else {
+        if (!incomeBeforeTaxesNodeForAlignment) console.warn("[Custom Alignment Early] 'Income Before Taxes' node not found for alignment.");
+        if (!interestExpenseNodeForAlignment) console.warn("[Custom Alignment Early] 'Interest' or 'Interest Expense' node not found for alignment.");
+    }
+    // --- END MOVED MANUAL NODE ADJUSTMENTS ---
+    console.log('[DEBUG SANKEY STAGE 2 - After Manual Adjust] Nodes:', nodes.map(n => ({ name: n.name, x0: n.x0, y0: n.y0, x1: n.x1, y1: n.y1, value: n.value, depth: n.depth, height: n.height, layer: n.layer })));
+    console.log('[DEBUG SANKEY STAGE 2 - After Manual Adjust] Links:', layoutLinks.map(l => ({ source: l.source.name, target: l.target.name, value: l.value, width: l.width, y0: l.y0, y1: l.y1, sy: l.sy, ty: l.ty })));
 
     // [Cascade] Attempting to run collision adjustments after main D3 transitions.
     const activeTransitionPromises = [];
@@ -2988,70 +3171,161 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
     }
 
     // --- BEGIN MODIFICATION FOR NODE UPDATE & RE-COLLISION ---
-    let maxCollisionLoop = 3; // Prevent infinite loops
+    let maxCollisionLoop = 30; // Increased max iterations, was 10 (originally 3). Prevent infinite loops. Increased by Cascade.
     let currentCollisionLoop = 0;
-    // graph.nodes and graph.links are the ones used by sankey.update()
-    // 'nodes' and 'links' variables in this scope should map to graph.nodes and graph.links
+    // 'nodes' and 'links' variables in this scope should map to graph.nodes and graph.links used by the sankey generator.
 
     function runCollisionCycle() {
+        console.log('[DEBUG] runCollisionCycle() function called!');
         currentCollisionLoop++;
         if (currentCollisionLoop > maxCollisionLoop) {
-            console.warn('[Cascade] Max collision loop iterations reached. Aborting further node/text adjustments.');
+                // currentCollisionLoop = 0; // Reset if you want subsequent renders to retry fully
             return;
         }
 
-        // Reset locks before each collision pass
-        // Ensure 'nodes' here is the same array of node data objects used throughout renderD3Sankey
-        nodes.forEach(n => {
-            if (n.lockedByIECollision) {
-                 // console.log(`[Cascade] Resetting 'lockedByIECollision' for ${n.name} for new collision pass.`);
-            }
-            n.lockedByIECollision = false; // This lock is for the *current* call to adjustNodeTextRectCollisions
-        });
-        window.markSankeyNeedsNodeUpdate = false; // Reset before running adjustments
+        let adjustmentsMadeThisPass = false;
+        // window.markSankeyNeedsNodeUpdate is a global flag that can be set by adjustment functions
+        // to force a layout update even if this specific pass doesn't detect local changes.
 
         console.log(`[Cascade] Running collision adjustments (Pass ${currentCollisionLoop})...`);
-        adjustNodeTextRectCollisions(nodes, 10); // Pass the correct node data array
+        
+        // === Phase 1: Text vs (Rect/Path) Collisions (existing logic) ===
+        // Assumes adjustNodeTextRectCollisions returns true if it made changes or sets window.markSankeyNeedsNodeUpdate.
+        const textAdjustmentsMade = adjustNodeTextRectCollisions(nodes, 15); // Increased padding by Cascade from 10 
+        if (textAdjustmentsMade) {
+            adjustmentsMadeThisPass = true;
+            if (window.markSankeyNeedsNodeUpdate) {
+                 console.log('[Cascade] Text adjustment phase marked Sankey for update.');
+            }
+        }
 
-        if (window.markSankeyNeedsNodeUpdate) {
-            console.log('[Cascade] Node data was updated by custom rule. Re-rendering affected elements and re-running collision check.');
+        // === Phase 1.5: Adjust Node Positions based on Text Shifts ===
+        console.log(`[Cascade] Phase 1.5: Adjusting node positions based on text label shifts (Pass ${currentCollisionLoop})...`);
+        const nodePositionAdjustmentsMade = adjustNodePositionsBasedOnLabelShifts(nodes, chartGroup);
+        if (nodePositionAdjustmentsMade) {
+            console.log('[Cascade] Node position adjustment phase marked Sankey for update.');
+            adjustmentsMadeThisPass = true;
+            window.markSankeyNeedsNodeUpdate = true; // Ensure layout is updated
+        }
 
-            // 1. Update DOM for nodes that were programmatically moved
-            let nodeMovedInDom = false;
-            nodes.forEach(nodeData => {
-                if (nodeData.name === 'Marketing Expenses' && nodeData.lockedByIECollision_flag_for_dom_update) {
-                     chartGroup.selectAll('.node')
-                        .filter(d => d === nodeData) // Filter by data object reference
-                        .select('rect')
-                        .attr('y', d => d.y0)
-                        .attr('height', d => Math.max(0.1, d.y1 - d.y0));
-                     console.log(`[Cascade] Updated DOM for '${nodeData.name}' rect to y0: ${nodeData.y0.toFixed(1)}, height: ${(nodeData.y1 - nodeData.y0).toFixed(1)}`);
-                     nodeData.lockedByIECollision_flag_for_dom_update = false; // Reset this specific flag
-                     nodeMovedInDom = true;
-                }
-            });
+        // === Phase 2: Node (Rect) vs Link (Path) Collisions (NEW LOGIC) ===
+        console.log(`[Cascade] Phase 2: Checking Node vs. Link collisions (Pass ${currentCollisionLoop})...`);
+        const allRenderedNodeData = chartGroup.selectAll('.node').data(); // Data of .node groups
+        const allRenderedNodeElements = chartGroup.selectAll('.node').nodes(); // DOM elements of .node groups
 
-            if (nodeMovedInDom) {
-                // 2. Update all links using sankey.update() and re-applying the path generator.
-                // This ensures links correctly connect to potentially moved nodes.
-                // 'graph' should be {nodes, links} using the up-to-date nodes array.
-                sankey.update({nodes: nodes, links: links}); 
-                
-                chartGroup.selectAll('path.sankey-link')
-                    .attr('d', sankey.link()) 
-                    .style('stroke-width', d => Math.max(1, d.width));
-                console.log('[Cascade] Updated all link paths after node move.');
-            } else {
-                console.log('[Cascade] markSankeyNeedsNodeUpdate was true, but no specific node DOM update was triggered by lockedByIECollision_flag_for_dom_update.');
+        if (allRenderedNodeElements.length === 0) {
+            console.warn('[Cascade] Phase 2: No rendered node elements found. Cannot check node-link collisions.');
+        } else {
+            // Nodes found, proceed with collision checks
+        }
+        const allRenderedLinkElements = chartGroup.selectAll('path.sankey-link').nodes();
+        
+        const NODE_ADJUSTMENT_STEP = 5; // Pixels to move node per adjustment
+
+        for (let i = 0; i < allRenderedNodeElements.length; i++) {
+            const nodeElement = allRenderedNodeElements[i];
+            const nodeData = allRenderedNodeData[i]; // Corresponding data object
+
+            if (!nodeData) { 
+                console.warn('[Cascade] Node data missing for an element in allRenderedNodeElements during Phase 2. Skipping this element.');
+                continue; 
+            }
+            
+            // Orange fill removed
+
+            if (nodeData.fixed) { // Skip actual collision checks if node is marked as fixed
+                // console.log(`[Cascade Node-Link Collision] Node "${nodeData.name}" is fixed. Skipping actual collision check.`);
+                continue;
             }
 
-            // 3. Re-run the collision cycle because the layout has changed
-            runCollisionCycle();
+            let nodeBBox = {
+                x: nodeData.x0,
+                y: nodeData.y0,
+                width: nodeData.x1 - nodeData.x0,
+                height: nodeData.y1 - nodeData.y0
+            };
+
+            for (const linkElement of allRenderedLinkElements) {
+                const linkBBox = linkElement.getBBox();
+                if (linkBBox.width <= 1 || linkBBox.height <= 1) continue; // Skip tiny/invisible links
+
+                // Prevent a node from being pushed by its own links
+                const linkDataObject = d3.select(linkElement).datum(); // Get the data bound to the link path
+                if (linkDataObject && (linkDataObject.source === nodeData || linkDataObject.target === nodeData)) {
+                    continue; // Skip if the current node is the source or target of this link
+                }
+
+                if (checkOverlap(nodeBBox, linkBBox, 2)) { // Using a small padding of 2px
+                    console.warn(`[Cascade Node-Link Collision] Node "${nodeData.name}" (y0: ${nodeData.y0.toFixed(1)}) overlaps with a link.`);
+                    
+                    const nodeCenterY = nodeData.y0 + (nodeData.y1 - nodeData.y0) / 2;
+                    const linkCenterY = linkBBox.y + linkBBox.height / 2;
+                    
+                    let dy = (nodeCenterY < linkCenterY) ? -NODE_ADJUSTMENT_STEP : NODE_ADJUSTMENT_STEP;
+
+                    console.log(`[Cascade Node-Link Collision] Adjusting Node "${nodeData.name}" by dy: ${dy}`);
+                    nodeData.y0 += dy;
+                    nodeData.y1 += dy;
+                    
+                    window.markSankeyNeedsNodeUpdate = true; // Signal that D3 layout needs recalculation
+                    adjustmentsMadeThisPass = true;
+                    // Consider breaking here if one adjustment per node per cycle is desired
+                    // break; 
+                }
+            }
+        }
+
+        // === Phase 3: Update DOM and Recurse if adjustments were made ===
+        if (window.markSankeyNeedsNodeUpdate || adjustmentsMadeThisPass) {
+            console.log('[Cascade] Node data or text was updated. Re-calculating D3 Sankey layout, re-rendering elements, and re-running collision check.');
+
+            const updatedGraph = sankey.update({nodes: nodes, links: links}); // `links` here is the original data links
+            nodes = updatedGraph.nodes;         // Re-assign to use the definitive nodes from the layout
+            layoutLinks = updatedGraph.links;   // Re-assign to use the definitive layout links (with updated .width etc.)
+        console.log('[DEBUG SANKEY STAGE 3 - In Collision, Post Update] Nodes:', nodes.map(n => ({ name: n.name, x0: n.x0, y0: n.y0, x1: n.x1, y1: n.y1, value: n.value, depth: n.depth, height: n.height, layer: n.layer })));
+        console.log('[DEBUG SANKEY STAGE 3 - In Collision, Post Update] Links:', layoutLinks.map(l => ({ source: l.source.name, target: l.target.name, value: l.value, width: l.width, y0: l.y0, y1: l.y1 }))); // sy, ty are added by assignLinkSlots 
+
+            chartGroup.selectAll('.node')
+                .attr('transform', d => `translate(${d.x0},${d.y0})`); 
+            
+            chartGroup.selectAll('.node rect')
+                .attr('height', d => Math.max(0.1, d.y1 - d.y0));
+
+            // Re-calculate link widths and positions after nodes have moved
+            // sankey.update({nodes, links}); // This might be re-adjusting node y-positions undesirably after collision resolution
+            assignLinkSlots(nodes, layoutLinks);
+
+            chartGroup.selectAll('path.sankey-link')
+                .data(layoutLinks, d => d.index) // Re-bind data to ensure paths use updated link objects
+                .attr('d', d => {
+                    // Use the same custom path logic as in initial rendering
+                    const x0 = d.source.x1, x1 = d.target.x0;
+                    const y0a = d._sy0, y0b = d._sy1;
+                    const y1a = d._ty0, y1b = d._ty1;
+                    const curvature = 0.5;
+                    const xi = d3.interpolateNumber(x0, x1);
+                    const x2 = xi(curvature), x3 = xi(1 - curvature);
+                    return [
+                      'M', x0, y0a,
+                      'C', x2, y0a, x3, y1a, x1, y1a,
+                      'L', x1, y1b,
+                      'C', x3, y1b, x2, y0b, x0, y0b,
+                      'Z'
+                    ].join(' ');
+                })
+                .style('stroke-width', 0.5);
+            
+            console.log('[Cascade] Updated D3 layout, node positions, and link paths.');
+            
+            window.markSankeyNeedsNodeUpdate = false; // Reset global flag for the next pass
+            runCollisionCycle(); // Recurse
         } else {
-            console.log('[Cascade] No further node updates required by collision logic on pass ' + currentCollisionLoop + '.');
+            console.log('[Cascade] No further node/text updates required by collision logic on pass ' + currentCollisionLoop + '.');
+            // currentCollisionLoop = 0; // Reset if you want subsequent renders to retry fully
         }
     }
 
+    // Call the collision cycle after D3 transitions (if any) or immediately.
     if (activeTransitionPromises.length > 0) {
         Promise.all(activeTransitionPromises).then(() => {
             console.log('[Cascade] Identified D3 transitions ended. Starting collision adjustment cycle.');
@@ -3061,8 +3335,11 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
             runCollisionCycle();
         });
     } else {
-        console.warn('[Cascade] No suitable D3 transition objects found. Starting collision adjustment cycle immediately.');
-        runCollisionCycle();
+        console.warn('[Cascade] No suitable D3 transition objects found or no transitions active. Delaying collision cycle start slightly.');
+        setTimeout(() => {
+            console.log('[Cascade] Starting collision adjustment cycle after brief delay.');
+            runCollisionCycle();
+        }, 100); // 100ms delay
     }
     // --- END MODIFICATION ---
 
@@ -3300,7 +3577,6 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
           const yoy = growthData[growthKeyMap[name]];
           margin = `<br><span style='color:#3cb371'>YoY: ${(yoy > 0 ? '+' : '') + (yoy * 100).toFixed(1)}%</span>`;
         }
-        
         showTooltip(`<b>${name}</b><br>${val}${margin}`, evt);
       })
       .on('mousemove', function(evt) { tooltip.style('left', (evt.pageX + 18) + 'px').style('top', (evt.pageY - 6) + 'px'); })
@@ -3334,135 +3610,6 @@ const LABEL_VERTICAL_SPACING = 12; // px, adjust this for tighter/looser spacing
       style.innerHTML = `.d3-tooltip { pointer-events: none; transition: opacity 0.1s; }`;
       document.head.appendChild(style);
       
-// ADD VERTICAL OFFSETS TO CREATE NATURAL WAVES
-// This ensures the Sankey diagram has beautiful flowing curves instead of straight lines
-nodes.forEach(node => {
-  let offsetY = 0;
-  
-  // For Gross Profit, move it slightly down for unprofitable companies
-  // This creates a natural wave from Revenue flowing up into it
-  if (node.name === 'Gross Profit' && !isProfitable) {
-    offsetY = 10; // Move down 10 pixels
-  }
-  
-  // For SG&A Expenses, move it down to create a wave from Operating Expenses
-  else if (node.name === 'SG&A Expenses' || node.name === 'SG&A') {
-    offsetY = 35; // Increased from 25 pixels for more noticeable offset
-  }
-  
-  // For Cost of Revenue, move it slightly up
-  else if (node.name === 'Cost of Revenue') {
-    offsetY = -8; // Move up 8 pixels
-  }
-  
-  // For Operating Loss, keep at top (no offset)
-  else if (node.name === 'Operating Loss') {
-    offsetY = 0;
-  }
-  
-  // For Income Before Taxes, slight downward movement
-  else if (node.name === 'Income Before Taxes') {
-    offsetY = 5;
-  }
-  
-  // Apply the offset to both y0 and y1
-  if (offsetY !== 0) {
-    node.y0 += offsetY;
-    node.y1 += offsetY;
-    
-    console.log(`[Wave Offset] ${node.name}: offset=${offsetY}, new y0=${node.y0}, y1=${node.y1}`);
-  }
-});
-  
-// CRITICAL: Update all link positions to match the new node positions
-// This ensures paths connect properly to the offset nodes
-layoutLinks.forEach(link => {
-  // Recalculate where links connect based on flow conservation
-  // This is critical to ensure the math is correct after offsetting nodes
-  
-  // For links where we've moved the source node
-  if (link.source.name === 'Cost of Revenue' || 
-      (link.source.name === 'Gross Profit' && !isProfitable) ||
-      link.source.name === 'SG&A Expenses' ||
-      link.source.name === 'Income Before Taxes') {
-    // The link should follow the node's movement
-    const nodeOffset = link.source.y0 - link.sy;
-    if (nodeOffset !== 0 && link.sy !== undefined) {
-      link.sy += nodeOffset;
-    }
-  }
-  
-  // For links where we've moved the target node
-  if (link.target.name === 'Cost of Revenue' || 
-      (link.target.name === 'Gross Profit' && !isProfitable) ||
-      link.target.name === 'SG&A Expenses' ||
-      link.target.name === 'Income Before Taxes') {
-    // The link should follow the node's movement
-    const nodeOffset = link.target.y0 - link.ty;
-    if (nodeOffset !== 0 && link.ty !== undefined) {
-      link.ty += nodeOffset;
-    }
-  }
-});
-
-  // Custom alignment for Interest Expense node position (X and Y)
-  console.log('!!! REACHED CUSTOM INTEREST EXPENSE ALIGNMENT BLOCK !!!'); 
-  console.log('[Custom Alignment DEBUG] All node names before find:', nodes.map(n => n.name));
-  const incomeBeforeTaxesNode = nodes.find(n => n.name === 'Income Before Taxes');
-  console.log('[Custom Alignment DEBUG] incomeBeforeTaxesNode:', incomeBeforeTaxesNode ? incomeBeforeTaxesNode.name : 'not found');
-
-  console.log('[Custom Alignment DEBUG] Attempting to find Interest Expense node...');
-  const interestExpenseNode = nodes.find(n => n.name === 'Interest' || n.name === 'Interest Expense');
-  console.log('[Custom Alignment DEBUG] interestExpenseNode:', interestExpenseNode ? interestExpenseNode.name : 'not found');
-
-  console.log('[Custom Alignment DEBUG] Checking if both nodes were found...');
-  const ibtNodeExists = !!incomeBeforeTaxesNode;
-  const ieNodeExists = !!interestExpenseNode;
-  console.log(`[Custom Alignment DEBUG] Pre-check: incomeBeforeTaxesNode exists? ${ibtNodeExists}, interestExpenseNode exists? ${ieNodeExists}`);
-  console.log('[Custom Alignment DEBUG] incomeBeforeTaxesNode object (pre-check):', incomeBeforeTaxesNode);
-  console.log('[Custom Alignment DEBUG] interestExpenseNode object (pre-check):', interestExpenseNode);
-
-  const conditionMet = incomeBeforeTaxesNode && interestExpenseNode;
-  console.log('[Custom Alignment DEBUG] Condition (incomeBeforeTaxesNode && interestExpenseNode) evaluated to:', conditionMet);
-
-  if (conditionMet) {
-    console.log(`[Custom Alignment DEBUG] Both nodes found. Proceeding with alignment.`);
-    console.log(`[Custom Alignment DEBUG] Found 'Income Before Taxes' node: x0=${incomeBeforeTaxesNode.x0}, y0=${incomeBeforeTaxesNode.y0}, x1=${incomeBeforeTaxesNode.x1}, y1=${incomeBeforeTaxesNode.y1}`);
-    console.log(`[Custom Alignment DEBUG] Found 'Interest Expense' node: x0=${interestExpenseNode.x0}, y0=${interestExpenseNode.y0}, x1=${interestExpenseNode.x1}, y1=${interestExpenseNode.y1}`);
-
-    const padding = 10; // Define padding between nodes
-    const originalInterestExpenseHeight = interestExpenseNode.y1 - interestExpenseNode.y0;
-
-    // Align X coordinates
-    interestExpenseNode.x0 = incomeBeforeTaxesNode.x0;
-    interestExpenseNode.x1 = incomeBeforeTaxesNode.x1;
-
-    // Position Interest Expense Y coordinates below Income Before Taxes
-    interestExpenseNode.y0 = incomeBeforeTaxesNode.y1 + padding;
-    interestExpenseNode.y1 = interestExpenseNode.y0 + originalInterestExpenseHeight;
-
-    console.log(`[Custom Alignment DEBUG] Adjusted 'Interest Expense' node: x0=${interestExpenseNode.x0}, y0=${interestExpenseNode.y0}, x1=${interestExpenseNode.x1}, y1=${interestExpenseNode.y1}`);
-
-    // Log information about the link from Operating Income to Interest Expense
-    if (operatingIncomeNode) {
-        const relevantLink = layoutLinks.find(l =>
-            l.source === operatingIncomeNode &&
-            l.target === interestExpenseNode
-        );
-        if (relevantLink) {
-            // Log current target point of the link. assignLinkSlots will use the updated node coords.
-            console.log(`[Custom Alignment Link Check] Link ${relevantLink.source.name} -> ${relevantLink.target.name}. Node target coords (pre-slot-reassignment): target.x0=${relevantLink.target.x0.toFixed(1)}, target.y0+height/2=${(relevantLink.target.y0 + (relevantLink.target.y1 - relevantLink.target.y0)/2).toFixed(1)}`);
-        } else {
-            console.warn(`[Custom Alignment] Could not find link from '${operatingIncomeNode.name}' to '${interestExpenseNode.name}' for logging.`);
-        }
-    } else {
-        console.warn("[Custom Alignment] 'Operating Income' node not found for link logging.");
-    }
-
-  } else {
-    if (!incomeBeforeTaxesNode) console.warn("[Custom Alignment] 'Income Before Taxes' node not found for alignment.");
-    if (!interestExpenseNode) console.warn("[Custom Alignment] 'Interest' or 'Interest Expense' node not found for alignment.");
-  }
 
 
 
