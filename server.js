@@ -6,7 +6,7 @@ const express = require('express');
 const app = express();
 // Create a dedicated router for API endpoints
 const apiRouter = express.Router();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const API_KEY = process.env.FMP_API_KEY;
 if (!API_KEY) {
   throw new Error('FMP_API_KEY is not set in environment variables.');
@@ -383,7 +383,7 @@ apiRouter.post('/value-investor-bot', express.json(), async (req, res) => {
 
   // Compose messages array for OpenAI
   // --- Wisdom-enhanced system prompt for OpenAI ---
-  let systemPrompt = `You are a value investor bot trained on the writings, letters, and public remarks of Warren Buffett and Charlie Munger. Your task is to answer questions in a conversational, narrative style, weaving in at least one direct, sourced quote from the provided wisdom into your main answer when possible. Use natural language to introduce quotes (e.g., "as Buffett wrote in his 1997 letter..."). Only use a separate 'Relevant Quotes' section if a quote cannot be smoothly integrated. Never present summaries or paraphrases as quotes—clearly label them as insights if needed. Minimize bullet points unless they improve clarity. Always cite the source and year for every quote used.`;
+  let systemPrompt = `You are a value investor bot trained on the writings, letters, and public remarks of Warren Buffett and Charlie Munger. Your task is to answer questions in a conversational, informative and educational style, weaving in at least one direct, sourced quote from the provided wisdom into your main answer when you feel it is relevant to the topic at hand. As investors come to you, help them think through investment decisions and opportunities as Warren Buffett, Charlie Munger, or a prudent value investor would. Share the wisdom of Buffett, Munger, and Berkshire Hathaway. Use natural language to introduce quotes (e.g., "as Buffett wrote in his 1997 letter..."). Never present summaries or paraphrases as quotes—clearly label them as insights if needed. Minimize bullet points unless they improve clarity. When you have the information, cite the source and year for quotes used.`;
 
   // Fetch wisdom from the local API (internal call)
   let wisdomChunks = [];
@@ -399,28 +399,36 @@ apiRouter.post('/value-investor-bot', express.json(), async (req, res) => {
         expandedQuery = `${companyName} ${ticker} ${userMessage}`;
       }
     }
-    const wisdomRes = await fetch('http://localhost:8000/search_wisdom', {
+    
+    console.log('[BuffettWisdom] Searching for wisdom with query:', expandedQuery);
+    
+    const wisdomRes = await fetch('http://localhost:8001/search_wisdom', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: expandedQuery, top_k: 10 })
+      body: JSON.stringify({ query: expandedQuery, top_k: 15 })
     });
     if (wisdomRes.ok) {
       const wisdomData = await wisdomRes.json();
+      console.log('[BuffettWisdom] Raw wisdom API response:', JSON.stringify(wisdomData, null, 2));
+      
       if (Array.isArray(wisdomData.results) && wisdomData.results.length > 0) {
         wisdomChunks = wisdomData.results.map(chunk =>
           `"${chunk.chunk_text.trim()}" — [Source: ${chunk.source_file}, ${chunk.year}]`
         );
+        console.log(`[BuffettWisdom] Found ${wisdomChunks.length} wisdom chunks:`);
+        wisdomChunks.forEach((w, i) => {
+          console.log(`[BuffettWisdom] Quote ${i + 1}:`, w.substring(0, 200) + '...');
+        });
+        
         systemPrompt += '\n\nRelevant wisdom for this question:';
         wisdomChunks.forEach((w, i) => {
           systemPrompt += `\n${i + 1}. ${w}`;
         });
-        // Add a markdown-formatted block for the quotes to ensure they are always visible in the answer
-        systemPrompt += '\n\n---\nIf you do not cite these quotes in your answer, append the following markdown section at the end of your response so the user always sees them:';
-        systemPrompt += '\n```markdown\n**Relevant Berkshire/Buffett Quotes:**';
-        wisdomChunks.forEach((w, i) => {
-          systemPrompt += `\n${i + 1}. ${w}`;
-        });
-        systemPrompt += '\n```';
+        systemPrompt += '\n\nUse as many of these quotes as you reasonably can that would be helpful to the investor asking the question. Focus on providing educational value and helping them think like a prudent value investor.';
+        
+        console.log('[BuffettWisdom] Final system prompt length:', systemPrompt.length);
+      } else {
+        console.log('[BuffettWisdom] No wisdom results found for query:', expandedQuery);
       }
     } else {
       console.error('[BuffettWisdom] Wisdom API error:', wisdomRes.status, await wisdomRes.text());

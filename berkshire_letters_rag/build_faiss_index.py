@@ -5,6 +5,7 @@ import numpy as np
 from tqdm import tqdm
 import openai
 import faiss
+import tiktoken
 from dotenv import load_dotenv
 
 # Load API key
@@ -15,18 +16,24 @@ PROCESSED_DIR = os.path.join(os.path.dirname(__file__), 'processed_letters')
 INDEX_FILE = os.path.join(os.path.dirname(__file__), 'wisdom_index.faiss')
 META_FILE = os.path.join(os.path.dirname(__file__), 'wisdom_metadata.json')
 EMBED_MODEL = "text-embedding-3-small"
-CHUNK_SIZE = 400
-CHUNK_OVERLAP = 50
+CHUNK_SIZE = 700  # tokens instead of words
+CHUNK_OVERLAP = 150  # tokens instead of words
+
+# Initialize tokenizer for the embedding model
+tokenizer = tiktoken.encoding_for_model("gpt-3.5-turbo")  # Compatible tokenizer
 
 
 def chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
-    words = text.split()
+    # Encode text to tokens
+    tokens = tokenizer.encode(text)
     chunks = []
-    for i in range(0, len(words), chunk_size - overlap):
-        chunk = ' '.join(words[i:i+chunk_size])
-        if chunk:
-            print(f"[PREVIEW CHUNK] {chunk[:300]}\n---")
-            chunks.append(chunk)
+    
+    for i in range(0, len(tokens), chunk_size - overlap):
+        chunk_tokens = tokens[i:i+chunk_size]
+        chunk_text = tokenizer.decode(chunk_tokens)
+        if chunk_text.strip():
+            print(f"[PREVIEW CHUNK] {chunk_text[:300]}... (Tokens: {len(chunk_tokens)})\n---")
+            chunks.append(chunk_text)
     return chunks
 
 def extract_metadata(fname, chunk, chunk_index):
@@ -34,11 +41,17 @@ def extract_metadata(fname, chunk, chunk_index):
     year_match = re.match(r'(\d{4})', fname)
     if year_match:
         year = int(year_match.group(1))
+    
+    # Count tokens in chunk for metadata
+    token_count = len(tokenizer.encode(chunk))
+    
     return {
         'source_file': fname,
         'year': year,
         'chunk_index': chunk_index,
-        'word_count': len(chunk.split()),
+        'token_count': token_count,
+        'word_count': len(chunk.split()),  # Keep word count for reference
+        'chunk_text': chunk
     }
 
 def main():
@@ -54,7 +67,6 @@ def main():
         for idx, chunk in enumerate(chunks):
             all_chunks.append(chunk)
             meta = extract_metadata(fname, chunk, idx)
-            meta['chunk_text'] = chunk
             all_metadatas.append(meta)
     print(f"Total chunks to embed: {len(all_chunks)}")
     # Embed chunks
